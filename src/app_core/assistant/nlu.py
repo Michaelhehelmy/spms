@@ -1118,7 +1118,6 @@ def semantic_classify(text: str, top_k: int = 3) -> dict | None:
         q = _SEMANTIC_MODEL.encode([text], normalize_embeddings=True, show_progress_bar=False)
         q = np.asarray(q)[0]
         sims = idx["embeddings"] @ q
-        best_i = int(np.argmax(sims))
         ranked_idx = np.argsort(-sims)[: max(1, top_k)]
         ranked = []
         for i in ranked_idx:

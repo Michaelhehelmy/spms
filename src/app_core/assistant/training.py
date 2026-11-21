@@ -264,7 +264,7 @@ def start_training(source_ids: list[str], backend: str = "sklearn", model: str =
         return {"ok": False, "error": "no_sources", "message": "Select at least one data source."}
 
     run = {
-        "id": hashlib.sha1(f"{time.time()}-{os.getpid()}-{est['fingerprint']}".encode()).hexdigest()[:12],
+        "id": hashlib.sha256(f"{time.time()}-{os.getpid()}-{est['fingerprint']}".encode()).hexdigest()[:12],
         "created_at": _now_iso(),
         "backend": backend,
         "model": model,

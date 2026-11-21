@@ -57,6 +57,7 @@ def load_chat_dataset(path: Path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="HuggingFaceTB/SmolLM2-360M-Instruct")
+    ap.add_argument("--revision", default=None, help="Optional model revision/commit hash for reproducible downloads")
     ap.add_argument("--dataset", default="data/datasets/processed/train.jsonl")
     ap.add_argument("--eval-dataset", default="data/datasets/processed/eval.jsonl")
     ap.add_argument("--output", default="models/assistant-smollm2-360m-lora")
@@ -78,7 +79,8 @@ def main():
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=True)
+    from_pretrained_kwargs = {"revision": args.revision} if args.revision else {}
+    tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=True, **from_pretrained_kwargs)  # nosec B615 - revision can be pinned via --revision
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -86,7 +88,8 @@ def main():
         args.model,
         torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
         device_map="auto" if torch.cuda.is_available() else None,
-    )
+        **from_pretrained_kwargs,
+    )  # nosec B615 - revision can be pinned via --revision
 
     peft_config = LoraConfig(
         r=16,
