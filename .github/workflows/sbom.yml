@@ -70,7 +70,7 @@ jobs:
   attach-release:
     name: Attach SBOMs to release
     needs: generate
-    if: github.event_name == 'release' && github.event.action == 'published'
+    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -81,11 +81,25 @@ jobs:
           name: sbom-${{ github.run_id }}
           path: sbom
 
-      - name: Attach SBOMs to release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
-        with:
-          files: |
-            sbom/sbom-repository.spdx.json
-            sbom/sbom-repository.cdx.json
-            sbom/sbom-image.spdx.json
-            sbom/sbom-image.cdx.json
+      - name: Attach SBOMs to release (wait for release if needed)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name || github.ref_name }}
+        run: |
+          set -euo pipefail
+          echo "Waiting for release $TAG in $REPO..."
+          for i in $(seq 1 60); do
+            if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+              echo "Release found"
+              break
+            fi
+            echo "Release not found yet ($i/60), waiting 30s..."
+            sleep 30
+          done
+          if ! gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "Release $TAG not found after waiting; skipping SBOM attach"
+            exit 0
+          fi
+          gh release upload "$TAG"             sbom/sbom-repository.spdx.json             sbom/sbom-repository.cdx.json             sbom/sbom-image.spdx.json             sbom/sbom-image.cdx.json             --repo "$REPO" --clobber
+          echo "SBOMs attached to $TAG"
