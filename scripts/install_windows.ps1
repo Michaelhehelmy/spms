@@ -137,12 +137,28 @@ try {
       try { git -C $InstallDir clean -fd *> $null } catch { $null = $_ }
       if ($GitRef -and $GitRef -ne $Branch) { Checkout-RequestedRef -Dir $InstallDir -Ref $GitRef }
     } else {
-      $dirty = ''
-      try { $dirty = (git -C $InstallDir status --porcelain 2>$null) } catch { $dirty = '' }
-      if ($dirty) {
-        Warn "Local changes detected in $InstallDir. Commit/stash/discard them before auto-update to avoid checkout/reset/pull failures."
+      $dirty = @()
+      try { $dirty = @(git -C $InstallDir status --porcelain 2>$null) } catch { $dirty = @() }
+      if ($dirty.Count -gt 0) {
+        $dCount = @($dirty | Where-Object { $_ -match '^ ?D|^D ' }).Count
+        $mCount = @($dirty | Where-Object { $_ -match '^ ?M|^M |^MM' }).Count
+        $uCount = @($dirty | Where-Object { $_ -match '^\?\?' }).Count
+        $otherCount = [Math]::Max(0, $dirty.Count - $dCount - $mCount - $uCount)
+        Warn "Local changes detected in $InstallDir (deleted=$dCount modified=$mCount untracked=$uCount other=$otherCount)."
         try { git -C $InstallDir status --short --branch } catch { $null = $_ }
-        throw "Working tree is not clean. Re-run with -Repair (or REPAIR=1) to auto-reset local source to origin/$Branch, or resolve changes manually."
+        $dirty | Select-Object -First 40 | ForEach-Object { Write-Host $_ }
+        if ($dirty.Count -gt 40) { Warn "... and $($dirty.Count - 40) more lines omitted" }
+        if ($dCount -gt 0 -and $mCount -eq 0 -and $otherCount -eq 0) {
+          Warn "Only tracked files are deleted (no local modifications). Safe recovery: git -C `"$InstallDir`" reset --hard HEAD (keeps untracked files)."
+        }
+        if ($mCount -gt 0 -or $otherCount -gt 0) {
+          Warn "Local modifications/conflicts detected. Commit/stash/discard them, or rerun with -Repair / REPAIR=1."
+        }
+        if ($uCount -gt 0 -and $dCount -eq 0 -and $mCount -eq 0 -and $otherCount -eq 0) {
+          Warn "Only untracked files detected. Review then remove with git -C `"$InstallDir`" clean -fd, or rerun with -Repair."
+        }
+        Warn "REPAIR=1/-Repair will run: git checkout -B $Branch origin/$Branch; git reset --hard origin/$Branch; git clean -fd (discards local source changes and deletes untracked files inside repo; PM_DATA_DIR/external runtime data unaffected)."
+        throw "Working tree is not clean. See diagnostics above. Re-run with -Repair (or REPAIR=1) for automatic recovery, or resolve manually."
       }
       if ($GitRef) { Checkout-RequestedRef -Dir $InstallDir -Ref $GitRef }
       elseif ($Branch) { try { git -C $InstallDir checkout $Branch *> $null } catch { $null = $_ } }

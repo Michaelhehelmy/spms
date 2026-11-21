@@ -166,10 +166,28 @@ main() {
         fi
       fi
     else
-      if [ -n "$(git -C "$INSTALL_DIR" status --porcelain 2>/dev/null || true)" ]; then
-        warn "Local changes detected in $INSTALL_DIR. Commit/stash/discard them, or rerun with REPAIR=1 to auto-reset local source to origin/$BRANCH."
+      _dirty_porcelain="$(git -C "$INSTALL_DIR" status --porcelain 2>/dev/null || true)"
+      if [ -n "$_dirty_porcelain" ]; then
+        _d_count=$(printf '%s\n' "$_dirty_porcelain" | grep -c '^ D\|^D' || true)
+        _m_count=$(printf '%s\n' "$_dirty_porcelain" | grep -c '^ M\|^M\|^MM' || true)
+        _u_count=$(printf '%s\n' "$_dirty_porcelain" | grep -c '^??' || true)
+        _other_count=$(printf '%s\n' "$_dirty_porcelain" | grep -vc '^ D\|^D\|^ M\|^M\|^MM\|^??' || true)
+        warn "Local changes detected in $INSTALL_DIR (deleted=${_d_count} modified=${_m_count} untracked=${_u_count} other=${_other_count})."
         git -C "$INSTALL_DIR" status --short --branch 2>/dev/null || true
-        err "Working tree is not clean (set REPAIR=1/FORCE_RESET=1 for automatic recovery)."
+        printf '%s\n' "$_dirty_porcelain" | head -n 40 >&2 || true
+        _total_lines=$(printf '%s\n' "$_dirty_porcelain" | wc -l | tr -d ' ')
+        [ "$_total_lines" -gt 40 ] && warn "... and $((_total_lines - 40)) more lines omitted" || true
+        if [ "$_d_count" -gt 0 ] && [ "$_m_count" -eq 0 ] && [ "$_other_count" -eq 0 ]; then
+          warn "Only tracked files are deleted (no local modifications). Safe recovery: git -C \"$INSTALL_DIR\" reset --hard HEAD (restores deleted tracked files; keeps untracked files)."
+        fi
+        if [ "$_m_count" -gt 0 ] || [ "$_other_count" -gt 0 ]; then
+          warn "Local modifications/conflicts detected. Commit/stash/discard them, or rerun with REPAIR=1/FORCE_RESET=1."
+        fi
+        if [ "$_u_count" -gt 0 ] && [ "$_d_count" -eq 0 ] && [ "$_m_count" -eq 0 ] && [ "$_other_count" -eq 0 ]; then
+          warn "Only untracked files detected. You can remove them with git -C \"$INSTALL_DIR\" clean -fd (review first), or rerun with REPAIR=1."
+        fi
+        warn "REPAIR=1/FORCE_RESET=1 will run: git checkout -B $BRANCH origin/$BRANCH && git reset --hard origin/$BRANCH && git clean -fd (discards local source changes and deletes untracked files inside repo; PM_DATA_DIR/external runtime data unaffected)."
+        err "Working tree is not clean. See diagnostics above. Set REPAIR=1/FORCE_RESET=1 for automatic recovery, or recover manually."
         exit 1
       fi
       # Best-effort: only fast-forward when on a local branch (avoid breaking detached pinned refs).
