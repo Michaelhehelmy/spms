@@ -204,3 +204,20 @@ def test_estimate_no_sources(training_env, monkeypatch):
     est = training.estimate_training([], backend="sklearn", model="m")
     assert est["ok"] is True
     assert est["total_rows"] == 0
+
+
+def test_device_profile_no_meminfo(training_env, monkeypatch):
+    real_exists = Path.exists
+    def fake_exists(self):
+        if str(self) == "/proc/meminfo":
+            return False
+        return real_exists(self)
+    monkeypatch.setattr(training.Path, "exists", fake_exists)
+    dev = training._device_profile()
+    assert dev["ram_gb"] is None
+
+
+def test_estimate_ram_none(training_env, monkeypatch):
+    monkeypatch.setattr(training, "_device_profile", lambda: {"cpu_count": 1, "ram_gb": None, "platform": "x", "machine": "x", "python": "3.12"})
+    est = training.estimate_training(["spms_feedback"], backend="llm_lora", model="m")
+    assert est["ok"] is True

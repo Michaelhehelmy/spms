@@ -3,7 +3,9 @@ from __future__ import annotations
 import sys
 import types
 
-import numpy as np
+import pytest
+
+np = pytest.importorskip("numpy")
 
 from app_core.assistant import nlu
 
