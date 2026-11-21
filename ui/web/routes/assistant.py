@@ -839,8 +839,10 @@ async def assistant_training_start(request: Request):
     if not _assistant_allowed(request):
         return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
     fields = _parse_body_fields(form, payload, "backend", "model", "sources", "csrf")
-    csrf = str(fields.get("csrf") or (form.get("csrf") if form else "") or "")
-    if not deps.verify_csrf(request, csrf):
+    csrf = str(fields.get("csrf") or (form.get("csrf") if form else "") or request.headers.get("X-CSRF-Token") or "")
+    try:
+        deps.verify_csrf(request, csrf)
+    except Exception:
         if want_json:
             return Response(content=json.dumps({"ok": False, "error": "csrf"}), media_type="application/json", status_code=403)
         return guarded_unlock_redirect(request, fallback="/assistant")

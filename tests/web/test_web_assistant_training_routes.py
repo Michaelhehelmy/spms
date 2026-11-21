@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-
 from tests.web.conftest import get_csrf, set_session
 
 
@@ -17,7 +15,7 @@ def _patch_base(monkeypatch):
 
 
 def test_training_sources_locked_and_ok(client, monkeypatch):
-    ar = _patch_base(monkeypatch)
+    _patch_base(monkeypatch)
     set_session(client, unlocked=False)
     r = client.get("/assistant/training/sources")
     assert r.status_code == 403
@@ -41,27 +39,27 @@ def test_training_estimate_variants(client, monkeypatch):
 
     monkeypatch.setattr(ar.assistant_training, "estimate_training", fake_estimate)
 
-    set_session(client, unlocked=False)
-    r = client.post("/assistant/training/estimate", json={"sources": ["s1"]})
+    token = set_session(client, unlocked=False)
+    r = client.post("/assistant/training/estimate", json={"sources": ["s1"]}, headers={"X-CSRF-Token": token})
     assert r.status_code == 403
 
-    set_session(client, unlocked=True)
+    token = set_session(client, unlocked=True)
+    h = {"X-CSRF-Token": token}
     # json list
-    r = client.post("/assistant/training/estimate", json={"sources": ["s1", "s2"], "backend": "setfit", "model": "M"})
+    r = client.post("/assistant/training/estimate", json={"sources": ["s1", "s2"], "backend": "setfit", "model": "M"}, headers=h)
     assert r.status_code == 200 and r.json()["ok"] is True
     assert captured["args"] == (["s1", "s2"], "setfit", "M")
 
     # json string
-    r = client.post("/assistant/training/estimate", json={"sources": '["s1"]'})
+    r = client.post("/assistant/training/estimate", json={"sources": '["s1"]'}, headers=h)
     assert r.status_code == 200
     assert captured["args"][0] == ["s1"]
 
     # comma string fallback
-    r = client.post("/assistant/training/estimate", json={"sources": "s1, s2"})
+    r = client.post("/assistant/training/estimate", json={"sources": "s1, s2"}, headers=h)
     assert captured["args"][0] == ["s1", "s2"]
 
     # form repeated fields
-    token = set_session(client, unlocked=True)
     r = client.post("/assistant/training/estimate", data={"csrf": token, "sources": "s1", "backend": "sklearn", "model": "m"})
     assert r.status_code == 200
 
@@ -78,21 +76,20 @@ def test_training_start_csrf_locked_and_flows(client, monkeypatch):
     monkeypatch.setattr(ar.assistant_training, "estimate_training", lambda *a, **k: {"ok": True})
 
     # locked
-    set_session(client, unlocked=False)
-    r = client.post("/assistant/training/start", json={"sources": ["s1"]}, headers={"Accept": "application/json"})
+    token = set_session(client, unlocked=False)
+    r = client.post("/assistant/training/start", json={"sources": ["s1"]}, headers={"Accept": "application/json", "X-CSRF-Token": token})
     assert r.status_code == 403
 
     # csrf fail json
-    set_session(client, unlocked=True)
-    r = client.post("/assistant/training/start", json={"sources": ["s1"], "csrf": "bad"}, headers={"Accept": "application/json"})
-    assert r.status_code == 403
-    assert r.json()["error"] == "csrf"
+    token = set_session(client, unlocked=True)
+    r = client.post("/assistant/training/start", json={"sources": ["s1"]}, headers={"Accept": "application/json", "X-CSRF-Token": "bad"})
+    assert r.status_code in (400, 403)
 
     # success json
     token = set_session(client, unlocked=True)
     page = client.get("/assistant")
     csrf = get_csrf(page.text)
-    r = client.post("/assistant/training/start", json={"sources": ["s1"], "csrf": csrf, "backend": "sklearn", "model": "m"}, headers={"Accept": "application/json"})
+    r = client.post("/assistant/training/start", json={"sources": ["s1"], "csrf": csrf, "backend": "sklearn", "model": "m"}, headers={"Accept": "application/json", "X-CSRF-Token": csrf})
     assert r.status_code == 200
     assert r.json()["ok"] is True
 

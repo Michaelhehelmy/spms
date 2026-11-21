@@ -259,7 +259,7 @@ def estimate_training(source_ids: list[str], backend: str = "sklearn", model: st
 def start_training(source_ids: list[str], backend: str = "sklearn", model: str = "SmolLM2-360M-Instruct") -> dict[str, Any]:
     est = estimate_training(source_ids, backend=backend, model=model)
     if est.get("already_trained"):
-        return {"ok": False, "error": "already_trained", "message": "Same model+backend already trained on the same selected data.", **est}
+        return {**est, "ok": False, "error": "already_trained", "message": "Same model+backend already trained on the same selected data."}
     if not source_ids:
         return {"ok": False, "error": "no_sources", "message": "Select at least one data source."}
 
@@ -309,4 +309,4 @@ def start_training(source_ids: list[str], backend: str = "sklearn", model: str =
         run.update({"status": "failed", "error": str(e), "finished_at": _now_iso()})
 
     _append_jsonl(RUNS_PATH, {**run, "event": "finish"})
-    return {"ok": run.get("status") in {"success", "prepared"}, "run": run, **est}
+    return {**est, "ok": run.get("status") in {"success", "prepared"}, "run": run}

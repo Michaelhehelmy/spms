@@ -95,8 +95,11 @@ def test_find_existing_run_and_dedupe(training_env, monkeypatch):
 
 def test_start_training_blocks_duplicate(training_env, monkeypatch):
     monkeypatch.setattr(training, "_device_profile", lambda: {"cpu_count": 4, "ram_gb": 8.0, "platform": "x", "machine": "x", "python": "3.12"})
+    monkeypatch.setattr(training.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not run")))
     fp = training.dataset_fingerprint(["spms_feedback"], "sklearn", "m")
     training._append_jsonl(training.RUNS_PATH, {"fingerprint": fp, "backend": "sklearn", "model": "m", "status": "success"})
+    # also ensure find_existing_run sees it via same module state
+    assert training.find_existing_run(fp, "sklearn", "m") is not None
     res = training.start_training(["spms_feedback"], backend="sklearn", model="m")
     assert res["ok"] is False and res["error"] == "already_trained"
 
@@ -119,9 +122,7 @@ def test_start_training_sklearn_success_and_failure(training_env, monkeypatch):
 
     # failure
     monkeypatch.setattr(training, "find_existing_run", lambda *a, **k: None)
-    def fake_run_fail(cmd, **kwargs):
-        return subprocess.CompletedProcess(cmd, 2, stdout="", stderr="bad")
-    monkeypatch.setattr(training.subprocess, "run", fake_run_fail)
+    monkeypatch.setattr(training.subprocess, "run", lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, 2, stdout="", stderr="bad"))
     res2 = training.start_training(["spms_intent_seed"], backend="sklearn", model="m2")
     assert res2["ok"] is False
     assert res2["run"]["status"] == "failed"
@@ -148,9 +149,8 @@ def test_start_training_setfit_and_llm_prepare(training_env, monkeypatch):
 
 def test_start_training_exception(training_env, monkeypatch):
     monkeypatch.setattr(training, "_device_profile", lambda: {"cpu_count": 4, "ram_gb": 8.0, "platform": "x", "machine": "x", "python": "3.12"})
-    def boom(*a, **k):
-        raise RuntimeError("boom")
-    monkeypatch.setattr(training.subprocess, "run", boom)
+    monkeypatch.setattr(training, "find_existing_run", lambda *a, **k: None)
+    monkeypatch.setattr(training.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
     res = training.start_training(["spms_feedback"], backend="sklearn", model="m")
     assert res["ok"] is False
     assert res["run"]["status"] == "failed"
@@ -191,9 +191,8 @@ def test_device_profile_and_manifest_edge_cases(training_env, monkeypatch):
 
 def test_start_training_llm_prepare_fail(training_env, monkeypatch):
     monkeypatch.setattr(training, "_device_profile", lambda: {"cpu_count": 4, "ram_gb": 8.0, "platform": "x", "machine": "x", "python": "3.12"})
-    def fake_run(cmd, **kwargs):
-        return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="prep failed")
-    monkeypatch.setattr(training.subprocess, "run", fake_run)
+    monkeypatch.setattr(training, "find_existing_run", lambda *a, **k: None)
+    monkeypatch.setattr(training.subprocess, "run", lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, 1, stdout="", stderr="prep failed"))
     res = training.start_training(["spms_feedback"], backend="llm_lora", model="m")
     assert res["ok"] is False
     assert res["run"]["status"] == "failed"

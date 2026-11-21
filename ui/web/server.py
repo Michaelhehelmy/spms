@@ -129,7 +129,8 @@ def create_app(*, init_db: bool = True, run_startup: bool = True) -> FastAPI:
                         deps.verify_csrf(request, token)
                     elif "multipart/form-data" in ct or "application/x-www-form-urlencoded" in ct or ct == "":
                         form = await request.form()
-                        deps.verify_csrf(request, form.get("csrf"))
+                        token = form.get("csrf") or request.headers.get("X-CSRF-Token") or request.headers.get("X-CSRFToken")
+                        deps.verify_csrf(request, token)
                         request.state.cached_form = form
                 except HTTPException as e:
                     logger.warning(

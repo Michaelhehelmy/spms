@@ -146,7 +146,7 @@
     return Array.from(document.querySelectorAll('input[name="train-source"]:checked')).map(x=>x.value);
   }
   async function postJson(url, body){
-    const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(body)});
+    const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-Token':csrf}, body: JSON.stringify(body)});
     return await r.json();
   }
   function renderResult(res){
