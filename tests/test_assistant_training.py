@@ -220,3 +220,28 @@ def test_estimate_ram_none(training_env, monkeypatch):
     monkeypatch.setattr(training, "_device_profile", lambda: {"cpu_count": 1, "ram_gb": None, "platform": "x", "machine": "x", "python": "3.12"})
     est = training.estimate_training(["spms_feedback"], backend="llm_lora", model="m")
     assert est["ok"] is True
+
+
+def test_file_info_dict_plain_and_raw_dir(training_env, monkeypatch):
+    p = training_env / "data" / "plain.json"
+    p.write_text(json.dumps({"a": 1, "b": 2}), encoding="utf-8")
+    assert training._file_info("data/plain.json")["rows"] == 2
+    # raw dir with subdir should be ignored
+    sub = training.RAW_DIR / "subdir"
+    sub.mkdir()
+    srcs = training.list_sources()
+    assert all(s["id"] != "subdir" for s in srcs)
+
+
+def test_device_profile_exception(training_env, monkeypatch):
+    real_read = Path.read_text
+    def fake_read(self, *a, **k):
+        if str(self) == "/proc/meminfo":
+            raise RuntimeError("boom")
+        return real_read(self, *a, **k)
+    monkeypatch.setattr(Path, "read_text", fake_read)
+    # force exists true
+    real_exists = Path.exists
+    monkeypatch.setattr(Path, "exists", lambda self: True if str(self) == "/proc/meminfo" else real_exists(self))
+    dev = training._device_profile()
+    assert dev["ram_gb"] is None

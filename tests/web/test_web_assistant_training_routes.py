@@ -107,3 +107,17 @@ def test_training_start_csrf_locked_and_flows(client, monkeypatch):
     monkeypatch.setattr(ar.assistant_training, "start_training", lambda *a, **k: {"ok": False, "error": "already_trained", "message": "dup"})
     r = client.post("/assistant/training/start", data={"sources": "s1", "csrf": csrf}, follow_redirects=False)
     assert r.status_code in (302, 303)
+
+
+def test_training_estimate_and_start_missing_sources(client, monkeypatch):
+    ar = _patch_base(monkeypatch)
+    monkeypatch.setattr(ar.assistant_training, "estimate_training", lambda source_ids, backend="sklearn", model="m": {"ok": True, "source_ids": source_ids, "already_trained": False, "estimate_minutes_min": 0, "estimate_minutes_max": 0, "fingerprint": "x", "total_rows": 0, "total_bytes": 0, "feasible_on_device": True, "notes": ""})
+    monkeypatch.setattr(ar.assistant_training, "start_training", lambda source_ids, backend="sklearn", model="m": {"ok": False, "error": "no_sources", "message": "Select at least one data source."})
+    token = set_session(client, unlocked=True)
+    h = {"X-CSRF-Token": token, "Accept": "application/json"}
+    r = client.post("/assistant/training/estimate", json={"backend": "sklearn", "model": "m"}, headers=h)
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
+    r = client.post("/assistant/training/start", json={"backend": "sklearn", "model": "m"}, headers=h)
+    assert r.status_code == 200
+    assert r.json()["error"] == "no_sources"
