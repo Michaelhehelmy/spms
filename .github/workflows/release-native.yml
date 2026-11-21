@@ -161,8 +161,14 @@ jobs:
               {
                 printf '%s\n' \
                   '#!/bin/sh' \
-                  'HERE="$(dirname "$(readlink -f \\"$0\\")")"' \
-                  'exec "$HERE/usr/bin/spms" "$@"'
+                  'set -eu' \
+                  'HERE="$(dirname "$(readlink -f \"$0\")")"' \
+                  'for c in "$HERE/usr/bin/spms" "$HERE/usr/bin/launcher" "$HERE/spms"; do' \
+                  '  if [ -x "$c" ]; then exec "$c" "$@"; fi' \
+                  'done' \
+                  'echo "SPMS launcher not found in AppImage. Searched: $HERE/usr/bin/spms" >&2' \
+                  'ls -la "$HERE" "$HERE/usr/bin" 2>&1 >&2 || true' \
+                  'exit 127'
               } > "$WORKDIR_APP/AppDir/AppRun"
               chmod +x "$WORKDIR_APP/AppDir/AppRun"
               ARCH_APPIMAGE="$(uname -m)"
@@ -184,6 +190,8 @@ jobs:
                 echo "appimagetool unavailable; skipping AppImage (binary artifact still available)"
               fi
               rm -rf "$WORKDIR_APP"
+              # Plain tarball for Linux users (no FUSE/AppImage needed)
+              tar -C dist -czf "dist/${ARTIFACT_NAME}.tar.gz" "${ARTIFACT_NAME}"
               set -e
               ;;
             macos)
@@ -365,6 +373,51 @@ jobs:
                   proc.wait(timeout=20)
               except Exception:
                   proc.kill()
+
+          # Linux AppImage smoke test (no-FUSE path)
+          if build_platform == "linux":
+              appimage = root / f"{artifact}.AppImage"
+              if appimage.exists():
+                  ai = work / ("appimage-" + appimage.name)
+                  shutil.copy2(appimage, ai)
+                  os.chmod(ai, 0o755)
+                  with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                      s.bind(("127.0.0.1", 0))
+                      ai_port = s.getsockname()[1]
+                  ai_cmd = [str(ai), "--appimage-extract-and-run", "--web", "--host", "127.0.0.1", "--port", str(ai_port), "--no-browser"]
+                  print("Starting AppImage smoke test:", ai_cmd)
+                  ai_proc = subprocess.Popen(ai_cmd, cwd=str(work), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                  try:
+                      ai_ok = False
+                      ai_last = None
+                      for _ in range(150):
+                          if ai_proc.poll() is not None:
+                              out = ""
+                              try:
+                                  out = (ai_proc.stdout.read() or "")[-4000:]
+                              except Exception:
+                                  pass
+                              raise RuntimeError(f"AppImage exited early with code {ai_proc.returncode}. Output:\n{out}")
+                          try:
+                              with urllib.request.urlopen(f"http://127.0.0.1:{ai_port}/healthz", timeout=2) as resp:
+                                  body = resp.read().decode("utf-8", "replace")
+                                  if resp.status == 200 and '"ok"' in body:
+                                      print("AppImage health check OK:", body[:300])
+                                      ai_ok = True
+                                      break
+                          except Exception as e:
+                              ai_last = e
+                          time.sleep(1)
+                      if not ai_ok:
+                          raise RuntimeError(f"AppImage health check did not pass: {ai_last}")
+                  finally:
+                      ai_proc.terminate()
+                      try:
+                          ai_proc.wait(timeout=20)
+                      except Exception:
+                          ai_proc.kill()
+              else:
+                  print("No AppImage found to smoke test; skipping")
           PY
 
       - name: Upload build artifact

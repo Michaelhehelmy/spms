@@ -222,6 +222,7 @@ python -m pip install -r requirements.txt -r requirements-dev.txt && python -m p
 - **Port in use / unreachable:** change `PORT`, bind correct `HOST`, allow firewall, verify LAN IP/proxy.
 - **DB/permission issues:** ensure writable data dir (`PM_DATA_DIR`/defaults), single writer, `--workers 1` for web.
 - **Update apply blocked:** commit/stash/discard local changes or resolve non-fast-forward state manually.
+- **Linux AppImage won’t open:** ensure `chmod +x ./spms-linux-x64.AppImage`. If FUSE is unavailable, run `./spms-linux-x64.AppImage --appimage-extract-and-run`, or use the plain `spms-linux-x64`/`.tar.gz` release asset.
 
 See `docs/TROUBLESHOOTING.md`.
 
@@ -229,7 +230,7 @@ See `docs/TROUBLESHOOTING.md`.
 
 - **Python package (wheel/sdist):** `pyproject.toml` builds distributable packages including web UI assets (`ui/web/templates`, `ui/web/static`, PWA manifest/icons/service worker). CI workflow: `.github/workflows/release-python-package.yml` (artifacts on tags/dispatch; optional PyPI publish via `PYPI_API_TOKEN`).
 - **Container image (GHCR):** multi-arch image published by `.github/workflows/release-container.yml` to `ghcr.io/michaelhehelmy/spms` (run with `--workers 1`, persistent `PM_DATA_DIR`).
-- **Native binaries:** Nuitka builds via `.github/workflows/release-native.yml` (Windows `.exe`, Linux binary/AppImage path, macOS `.dmg`). See `docs/NATIVE_BUILDS.md`.
+- **Native binaries:** Nuitka builds via `.github/workflows/release-native.yml` (Windows `.exe`, Linux binary/AppImage/tar.gz, macOS `.dmg`). See `docs/NATIVE_BUILDS.md`.
 - **PWA / installable web app:** manifest, icons, and a minimal service worker are served from `ui/web/static/` for “Add to Home Screen / Install app” (best over HTTPS for non-localhost).
 - **Kubernetes/Helm:** chart skeleton in `deploy/helm/spms` (single-replica, SQLite-safe `--workers 1`, persistent data volume, probes).
 - **Linux packages scaffolds:** Debian/Ubuntu `.deb` (`deploy/packaging/deb/build-deb.sh`) and RPM (`deploy/packaging/rpm/build-rpm.sh`, `SPECS/spms.spec`) with `spms-web` systemd service and `/etc/spms/spms.env`.

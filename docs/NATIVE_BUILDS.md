@@ -6,8 +6,8 @@ This document describes how to produce **native/standalone SPMS executables** wi
 
 - **Windows:** single-file executable **`.exe`** (Nuitka `--onefile`)
   - Example: `spms-windows-x64.exe`
-- **Linux:** single-file **binary/executable** (Nuitka `--onefile`) and best-effort **`.AppImage`** in CI/community script when `appimagetool` is available
-  - Examples: `spms-linux-x64`, `spms-linux-x64.AppImage`
+- **Linux:** single-file **binary/executable** (Nuitka `--onefile`), best-effort **`.AppImage`**, and a plain **`.tar.gz`** fallback
+  - Examples: `spms-linux-x64`, `spms-linux-x64.AppImage`, `spms-linux-x64.tar.gz`
 - **macOS:** **`.dmg`** containing a macOS **`.app`** bundle (Nuitka `--standalone --macos-create-app-bundle`, packaged with `hdiutil`)
   - Examples: `spms-macos-x64.dmg`, `spms-macos-arm64.dmg`
 
@@ -27,7 +27,7 @@ This document describes how to produce **native/standalone SPMS executables** wi
 - C/C++ toolchain: MSVC Build Tools on Windows, `build-essential`/clang on Linux, Xcode Command Line Tools on macOS
 - App dependencies: `pip install -r requirements.txt`
 - Nuitka deps: `pip install nuitka ordered-set zstandard imageio`
-- **Linux AppImage (optional):** `appimagetool` (CI attempts to download it if missing)
+- **Linux AppImage (optional):** `appimagetool` (CI attempts to download it if missing). AppImage runtime is type 2; on hosts without FUSE/libfuse support, run with `--appimage-extract-and-run` or use the plain binary/`.tar.gz`.
 - **macOS DMG:** `hdiutil` (standard on macOS)
 
 ## Build (local)
@@ -66,7 +66,7 @@ python -m nuitka `
 # Output: dist\nuitka\spms.exe (name may vary by Nuitka version)
 ```
 
-### Linux — single binary (+ optional AppImage)
+### Linux — single binary + AppImage + tarball
 ```bash
 python3 -m venv .venv-build
 . .venv-build/bin/activate
@@ -99,6 +99,8 @@ python -m nuitka \
 chmod +x dist/nuitka/spms* || true
 # Output: dist/nuitka/spms or dist/nuitka/spms.bin (single-file binary)
 # Optional: wrap in an AppImage using appimagetool (see scripts/community_native_build.sh / CI workflow)
+# No-FUSE fallback: ./spms-linux-x64.AppImage --appimage-extract-and-run
+# Plain fallback: ./spms-linux-x64 or extract spms-linux-x64.tar.gz
 ```
 
 ### macOS — `.app` bundle in `.dmg`
@@ -161,7 +163,7 @@ You may need to refine flags, add signing/notarization (macOS/Windows), and adju
 Publish assets with clear OS/arch tokens (and platform-native extensions):
 
 - `spms-windows-x64.exe`
-- `spms-linux-x64` (single binary) and/or `spms-linux-x64.AppImage`
+- `spms-linux-x64` (single binary), `spms-linux-x64.AppImage`, and/or `spms-linux-x64.tar.gz`
 - `spms-macos-x64.dmg`
 - `spms-macos-arm64.dmg`
 - Include checksums (e.g. `SHA256SUMS.txt`)
@@ -176,7 +178,7 @@ Keep `index.html` asset-matching patterns aligned with produced filenames/extens
 - [ ] Verify templates/static load correctly in web mode
 - [ ] Confirm `PM_DATA_DIR`/default data dir is writable and external to bundle; runtime data (DB/exports/invoices) persists across restarts/updates
 - [ ] Run with `--workers 1` only; test unlock/CSRF/core flows and LAN access (`--host 0.0.0.0`) if needed
-- [ ] On Linux, validate binary and `.AppImage` separately (if both produced) and check `chmod +x`/glibc compatibility
+- [ ] On Linux, validate binary, `.AppImage`, and `.tar.gz` separately (if produced); check `chmod +x`, glibc compatibility, and `--appimage-extract-and-run` fallback on no-FUSE hosts
 - [ ] On macOS, validate `.dmg` mount/install/run and Gatekeeper/signing/notarization behavior as applicable
 
 ## Alternatives
