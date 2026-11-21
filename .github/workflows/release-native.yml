@@ -162,12 +162,16 @@ jobs:
                 printf '%s\n' \
                   '#!/bin/sh' \
                   'set -eu' \
-                  'HERE="$(dirname "$(readlink -f \"$0\")")"' \
-                  'for c in "$HERE/usr/bin/spms" "$HERE/usr/bin/launcher" "$HERE/spms"; do' \
-                  '  if [ -x "$c" ]; then exec "$c" "$@"; fi' \
+                  'SELF="$(readlink -f "$0" 2>/dev/null || echo "$0")"' \
+                  'HERE="$(dirname "$SELF")"' \
+                  'APPDIR="${APPDIR:-$HERE}"' \
+                  'for base in "$APPDIR" "$HERE"; do' \
+                  '  for c in "$base/usr/bin/spms" "$base/usr/bin/launcher" "$base/spms"; do' \
+                  '    if [ -x "$c" ]; then exec "$c" "$@"; fi' \
+                  '  done' \
                   'done' \
-                  'echo "SPMS launcher not found in AppImage. Searched: $HERE/usr/bin/spms" >&2' \
-                  'ls -la "$HERE" "$HERE/usr/bin" 2>&1 >&2 || true' \
+                  'echo "SPMS launcher not found in AppImage. APPDIR=${APPDIR} HERE=${HERE}" >&2' \
+                  'ls -la "$APPDIR" "$APPDIR/usr/bin" "$HERE" "$HERE/usr/bin" 2>&1 >&2 || true' \
                   'exit 127'
               } > "$WORKDIR_APP/AppDir/AppRun"
               chmod +x "$WORKDIR_APP/AppDir/AppRun"
