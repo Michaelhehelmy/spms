@@ -77,4 +77,106 @@
     {% endif %}
   </aside>
 </div>
+
+{% if not assistant_locked %}
+<div class="panel" style="margin-top:14px" id="assistant-training">
+  <div class="panel-header"><h3 style="margin:0">Training / Datasets</h3><span class="muted" style="font-size:12px">Choose data, estimate time, avoid duplicate training</span></div>
+  <p class="muted" style="font-size:13px">Select data sources to train/improve the assistant. Same model+backend+data selection is fingerprinted to prevent training twice on identical data.</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
+    <div>
+      <label><strong>Backend</strong>
+        <select id="train-backend">
+          {% for b in training_backends %}
+          <option value="{{ b.id }}">{{ b.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label><strong>Model</strong>
+        <input id="train-model" type="text" value="{{ default_model }}" />
+      </label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button type="button" id="train-estimate-btn">Estimate time</button>
+        <button type="button" class="warn" id="train-start-btn">Start / Prepare</button>
+      </div>
+      <div id="train-result" class="muted" style="margin-top:10px;font-size:13px"></div>
+    </div>
+
+    <div>
+      <strong>Data sources</strong>
+      <div style="max-height:260px;overflow:auto;margin-top:6px;border:1px solid var(--border,#ddd);padding:8px;border-radius:8px">
+        {% for s in training_sources %}
+        <label style="display:block;margin-bottom:8px">
+          <input type="checkbox" name="train-source" value="{{ s.id }}" {% if s.default %}checked{% endif %}>
+          <strong>{{ s.label }}</strong>
+          <div class="muted" style="font-size:12px">{{ s.description }}<br>kind={{ s.kind }} · rows={{ s.rows }} · {{ (s.bytes / 1024)|round(1) }} KB · {% if s.exists %}available{% else %}missing{% endif %}</div>
+        </label>
+        {% else %}
+        <div class="muted">No data sources found.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <h4 style="margin-top:14px">Recent training runs</h4>
+  <div style="overflow:auto">
+    <table class="table" style="width:100%;font-size:13px">
+      <thead><tr><th>When</th><th>Backend</th><th>Model</th><th>Status</th><th>Fingerprint</th></tr></thead>
+      <tbody id="train-runs">
+        {% for r in training_runs %}
+        <tr>
+          <td>{{ r.created_at or r.finished_at or '' }}</td>
+          <td>{{ r.backend }}</td>
+          <td>{{ r.model }}</td>
+          <td>{{ r.status }}</td>
+          <td><code style="font-size:11px">{{ (r.fingerprint or '')[:12] }}</code></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="muted">No training runs yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function(){
+  const csrf = {{ csrf_token|tojson }};
+  function selectedSources(){
+    return Array.from(document.querySelectorAll('input[name="train-source"]:checked')).map(x=>x.value);
+  }
+  async function postJson(url, body){
+    const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(body)});
+    return await r.json();
+  }
+  function renderResult(res){
+    const el = document.getElementById('train-result');
+    if(!el) return;
+    if(!res){ el.textContent='No response'; return; }
+    if(res.error){ el.innerHTML = '<span style="color:#b00"><strong>Error:</strong> '+(res.message||res.error)+'</span>'; return; }
+    const est = res.estimate_minutes_min !== undefined ? res : (res.run ? res : res);
+    const mins = est.estimate_minutes_min !== undefined ? (est.estimate_minutes_min + '–' + est.estimate_minutes_max + ' min') : '';
+    let html = '';
+    if(res.already_trained){ html += '<div style="color:#b45309"><strong>Already trained:</strong> same model+backend+data fingerprint exists. Choose different data or backend/model.</div>'; }
+    if(mins){ html += '<div><strong>Estimate:</strong> '+mins+' ('+(est.feasible_on_device?'feasible on-device':'external/GPU recommended')+')</div>'; }
+    if(est.total_rows!==undefined){ html += '<div><strong>Selected:</strong> '+est.total_rows+' rows, '+Math.round((est.total_bytes||0)/1024)+' KB</div>'; }
+    if(est.notes){ html += '<div class="muted">'+est.notes+'</div>'; }
+    if(est.fingerprint){ html += '<div class="muted">Fingerprint: <code>'+String(est.fingerprint).slice(0,12)+'</code></div>'; }
+    if(res.run){ html += '<div><strong>Run status:</strong> '+(res.run.status||'')+' <code>'+ (res.run.id||'') +'</code></div>'; if(res.run.next_steps){ html += '<ul>'+res.run.next_steps.map(s=>'<li>'+s+'</li>').join('')+'</ul>'; } }
+    el.innerHTML = html || '<pre>'+JSON.stringify(res,null,2)+'</pre>';
+  }
+  document.getElementById('train-estimate-btn')?.addEventListener('click', async ()=>{
+    renderResult({notes:'Estimating...'});
+    const body = {backend: document.getElementById('train-backend').value, model: document.getElementById('train-model').value, sources: selectedSources()};
+    try{ renderResult(await postJson('/assistant/training/estimate', body)); }catch(e){ renderResult({error:String(e)}); }
+  });
+  document.getElementById('train-start-btn')?.addEventListener('click', async ()=>{
+    if(!confirm('Start training/preparation for selected data?')) return;
+    renderResult({notes:'Starting...'});
+    const body = {csrf, backend: document.getElementById('train-backend').value, model: document.getElementById('train-model').value, sources: selectedSources()};
+    try{ const res = await postJson('/assistant/training/start', body); renderResult(res); if(res.ok) setTimeout(()=>location.reload(), 1200); }catch(e){ renderResult({error:String(e)}); }
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

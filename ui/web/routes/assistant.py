@@ -11,6 +11,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
 from app_core import assistant, services
+from app_core.assistant import training as assistant_training
 from app_core.assistant.actions import create_proposal, execute_pending_action
 from ui.web import deps
 from ui.web.rendering import render
@@ -197,6 +198,7 @@ def assistant_page(request: Request):
         "assistant_locked": not _assistant_allowed(request),
         "llm": assistant.get_llm_config(),
         "intents": assistant.INTENT_LABELS,
+        **_training_context(request),
     }
     return render(request, "assistant/index.html", ctx)
 
@@ -770,3 +772,98 @@ async def assistant_clear(request: Request):
     return htmx_partial_or_redirect(
         request, partial_template="assistant/_messages.html", partial_context=ctx, redirect_url="/assistant"
     )
+
+
+# ── Training / dataset selection ────────────────────────────────────────────
+
+def _training_context(request: Request) -> dict[str, Any]:
+    sources = assistant_training.list_sources()
+    runs = assistant_training.training_runs()[-10:]
+    runs.reverse()
+    return {
+        "training_sources": sources,
+        "training_runs": runs,
+        "training_backends": [
+            {"id": "sklearn", "label": "Intent classifier (sklearn, fast, on-device)"},
+            {"id": "setfit", "label": "Intent classifier (SetFit, heavier)"},
+            {"id": "llm_lora", "label": "SmolLM2-360M LoRA fine-tune (GPU recommended, prepares dataset)"},
+        ],
+        "default_model": "SmolLM2-360M-Instruct",
+    }
+
+
+@router.get("/assistant/training/sources")
+def assistant_training_sources(request: Request):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    return {"ok": True, **_training_context(request)}
+
+
+@router.post("/assistant/training/estimate")
+async def assistant_training_estimate(request: Request):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    form, payload = await _get_request_data(request)
+    fields = _parse_body_fields(form, payload, "backend", "model", "sources")
+    backend = str(fields.get("backend") or "sklearn")
+    model = str(fields.get("model") or "SmolLM2-360M-Instruct")
+    raw_sources = fields.get("sources")
+    if isinstance(raw_sources, str):
+        try:
+            source_ids = json.loads(raw_sources)
+        except Exception:
+            source_ids = [s.strip() for s in raw_sources.split(",") if s.strip()]
+    elif isinstance(raw_sources, list):
+        source_ids = [str(s) for s in raw_sources]
+    else:
+        # also accept repeated form fields
+        try:
+            if hasattr(form, "getlist"):
+                source_ids = [str(s) for s in form.getlist("sources")]  # type: ignore
+            else:
+                source_ids = []
+        except Exception:
+            source_ids = []
+    est = assistant_training.estimate_training(source_ids, backend=backend, model=model)
+    return est
+
+
+@router.post("/assistant/training/start")
+async def assistant_training_start(request: Request):
+    form, payload = await _get_request_data(request)
+    want_json = (
+        (request.headers.get("accept", "").find("application/json") >= 0)
+        or (request.headers.get("x-requested-with") == "assistant-widget")
+        or (str((form.get("format") if form else "") or "") == "json")
+    )
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    fields = _parse_body_fields(form, payload, "backend", "model", "sources", "csrf")
+    csrf = str(fields.get("csrf") or (form.get("csrf") if form else "") or "")
+    if not deps.verify_csrf(request, csrf):
+        if want_json:
+            return Response(content=json.dumps({"ok": False, "error": "csrf"}), media_type="application/json", status_code=403)
+        return guarded_unlock_redirect(request, fallback="/assistant")
+    backend = str(fields.get("backend") or "sklearn")
+    model = str(fields.get("model") or "SmolLM2-360M-Instruct")
+    raw_sources = fields.get("sources")
+    if isinstance(raw_sources, str):
+        try:
+            source_ids = json.loads(raw_sources)
+        except Exception:
+            source_ids = [s.strip() for s in raw_sources.split(",") if s.strip()]
+    elif isinstance(raw_sources, list):
+        source_ids = [str(s) for s in raw_sources]
+    else:
+        try:
+            source_ids = [str(s) for s in form.getlist("sources")] if hasattr(form, "getlist") else []
+        except Exception:
+            source_ids = []
+    res = assistant_training.start_training(source_ids, backend=backend, model=model)
+    if want_json:
+        return res
+    if res.get("ok"):
+        deps.add_flash(request, f"Training {res.get('run',{}).get('status')}: {backend}", "success")
+    else:
+        deps.add_flash(request, res.get("message") or res.get("error") or "Training failed", "error")
+    return flash_redirect(request, "/assistant")
