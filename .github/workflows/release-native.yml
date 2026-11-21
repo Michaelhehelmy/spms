@@ -449,6 +449,16 @@ jobs:
       - name: List assets
         run: ls -R release-assets
 
+      - name: Generate checksums
+        run: |
+          set -euo pipefail
+          cd release-assets
+          # Generate SHA256SUMS for files only (stable order)
+          find . -maxdepth 1 -type f ! -name 'SHA256SUMS.txt' -printf '%P\n' | sort | while read -r f; do
+            sha256sum "$f"
+          done > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
