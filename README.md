@@ -222,7 +222,7 @@ python -m pip install -r requirements.txt -r requirements-dev.txt && python -m p
 - **Port in use / unreachable:** change `PORT`, bind correct `HOST`, allow firewall, verify LAN IP/proxy.
 - **DB/permission issues:** ensure writable data dir (`PM_DATA_DIR`/defaults), single writer, `--workers 1` for web.
 - **Update apply blocked:** commit/stash/discard local changes or resolve non-fast-forward state manually.
-- **Linux AppImage won’t open:** ensure `chmod +x ./spms-linux-x64.AppImage`. If FUSE is unavailable, run `./spms-linux-x64.AppImage --appimage-extract-and-run`, or use the plain `spms-linux-x64`/`.tar.gz` release asset.
+- **Linux AppImage won’t open:** ensure `chmod +x ./spms-linux-x64.AppImage`. If FUSE is unavailable, run `./spms-linux-x64.AppImage --appimage-extract-and-run`, or extract with `./spms-linux-x64.AppImage --appimage-extract` and run `./squashfs-root/AppRun`. By default AppRun starts the Web UI and prints the live URL/server status. Plain `spms-linux-x64`/`.tar.gz` also works.
 
 See `docs/TROUBLESHOOTING.md`.
 

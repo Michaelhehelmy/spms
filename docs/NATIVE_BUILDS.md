@@ -27,7 +27,7 @@ This document describes how to produce **native/standalone SPMS executables** wi
 - C/C++ toolchain: MSVC Build Tools on Windows, `build-essential`/clang on Linux, Xcode Command Line Tools on macOS
 - App dependencies: `pip install -r requirements.txt`
 - Nuitka deps: `pip install nuitka ordered-set zstandard imageio`
-- **Linux AppImage (optional):** `appimagetool` (CI attempts to download it if missing). AppImage runtime is type 2; on hosts without FUSE/libfuse support, run with `--appimage-extract-and-run` or use the plain binary/`.tar.gz`.
+- **Linux AppImage (optional):** `appimagetool` (CI attempts to download it if missing). AppImage runtime is type 2; on hosts without FUSE/libfuse support, run with `--appimage-extract-and-run`, or `--appimage-extract` then `./squashfs-root/AppRun`. AppRun defaults to Web UI (prints live URL/server status) when no args are passed; pass explicit args to override.
 - **macOS DMG:** `hdiutil` (standard on macOS)
 
 ## Build (local)

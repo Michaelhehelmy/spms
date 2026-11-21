@@ -292,6 +292,7 @@ def run_web(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True
     url_host = "127.0.0.1" if host in {"0.0.0.0", "::"} else host
     url = f"http://{url_host}:{port}"
     print(f"\nStarting Web UI at {url}")
+    print(f"Server is live at {url} (once startup completes)")
     print("SQLite-safe mode: --workers 1 (do not increase).")
     print("Runtime data (DB/exports/invoices/PM_DATA_DIR) is preserved across updates/restarts.")
     if host in {"0.0.0.0", "::"}:
@@ -300,7 +301,7 @@ def run_web(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True
     if host not in {"127.0.0.1", "localhost", "::1"} and not os.environ.get("PM_WEB_SECRET_KEY"):
         print("WARNING: PM_WEB_SECRET_KEY is not set. Set a strong random secret for non-local/shared deployments.")
     print("Health: GET /health, /healthz, /readyz   |   Doctor: python3 -m app_core.doctor")
-    print("Press Ctrl+C to stop and return to menu.\n")
+    print("Press Ctrl+C to stop.\n")
 
     if open_browser:
 
