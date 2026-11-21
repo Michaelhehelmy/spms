@@ -38,7 +38,10 @@ dist/
 exports/
 htmlcov/
 invoices/
-models/
+models/*
+!models/.gitkeep
+data/datasets/raw/
+data/datasets/processed/
 pip-wheel-metadata/
 property_manager.db
 property_manager.db-*

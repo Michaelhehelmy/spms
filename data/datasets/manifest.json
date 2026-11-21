@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "description": "Dataset registry for SPMS assistant training",
+  "datasets": [
+    {
+      "id": "spms_feedback",
+      "path": "data/assistant_nlu/feedback.jsonl",
+      "type": "feedback",
+      "enabled": true,
+      "notes": "Approved/corrected user feedback; sanitize before training."
+    },
+    {
+      "id": "spms_intent_seed",
+      "path": "data/assistant_nlu/intents_seed.jsonl",
+      "type": "intent_seed",
+      "enabled": true,
+      "notes": "Seed intent examples for NLU."
+    }
+  ]
+}

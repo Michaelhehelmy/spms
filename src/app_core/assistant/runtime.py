@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 
 from .. import services
+from ..paths import PROJECT_ROOT
 from .common import extract_slots
 from .engine import _execute_compound, _execute_single
 from .formatting import _local_talking_rephrase
@@ -37,6 +38,15 @@ def _llm_config():
             or os.environ.get("ASSISTANT_LOCAL_MODEL_PATH", "")
             or ""
         ).strip()
+        if not model_path:
+            for candidate in [
+                PROJECT_ROOT / "models" / "assistant-smollm2-360m-q4_k_m.gguf",
+                PROJECT_ROOT / "models" / "smollm2-360m-instruct-q4_k_m.gguf",
+                PROJECT_ROOT / "data" / "models" / "assistant-smollm2-360m-q4_k_m.gguf",
+            ]:
+                if candidate.exists():
+                    model_path = str(candidate)
+                    break
         n_ctx = int(services.get_setting("assistant_local_n_ctx", "2048") or 2048)
     except Exception:
         provider, response_mode, model_path, n_ctx = "auto", "talking", "", 2048
