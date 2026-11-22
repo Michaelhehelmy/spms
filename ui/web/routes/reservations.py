@@ -89,8 +89,6 @@ def list_res(request: Request, q: str = "", source: str = "", segment: str = "",
     tab = (tab or "list").strip().lower()
     if tab not in allowed:
         tab = "list"
-    if q or source or segment:
-        tab = "list"
     # pricing quote context (create tab)
     quote = None
     quote_error = None
@@ -103,6 +101,9 @@ def list_res(request: Request, q: str = "", source: str = "", segment: str = "",
                 quote = snap
         except Exception:
             quote = None
+    # Filters force the List tab, except a pricing-quote result which must show on Create.
+    if (q or source or segment) and not quote:
+        tab = "list"
     prefill = {
         k: request.query_params.get(k, "")
         for k in [

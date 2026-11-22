@@ -208,6 +208,8 @@ See `docs/BACKUP_RESTORE.md` for DR guidance.
 
 ## Tests & checks
 
+- **E2E:** browser-driven Playwright suite — see `docs/E2E_TESTS.md` (run locally with `.venv-build/bin/python -m pytest tests/e2e -q`).
+
 ```bash
 python -m py_compile src/app_core/*.py ui/web/*.py main.py launcher.py
 PYTHONPATH=src pytest -q
