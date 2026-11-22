@@ -205,7 +205,11 @@ DESKTOP
       cp "$WORKDIR_APP/AppDir/spms.desktop" "$WORKDIR_APP/AppDir/usr/share/applications/spms.desktop" 2>/dev/null || true
       cat > "$WORKDIR_APP/AppDir/AppRun" <<'APPRUN'
 #!/bin/sh
+# AppImage entry point: default to Web UI when run with no args so the user
+# sees the app process, the access URL, and the server status ("server is live").
+# Ctrl+C stops it. (app issue #41)
 HERE="$(dirname "$(readlink -f "$0")")"
+if [ "$#" -eq 0 ]; then set -- --web --no-browser; fi
 exec "$HERE/usr/bin/spms" "$@"
 APPRUN
       chmod +x "$WORKDIR_APP/AppDir/AppRun" 2>/dev/null || true
