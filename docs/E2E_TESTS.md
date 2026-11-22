@@ -32,7 +32,9 @@ The suite runs headless; `pytest -p no:randomly` is not needed.
 | `tests/e2e/test_accounting_reports.py` | accounting overview/expenses/payments/shifts, shift movement, P&L report |
 | `tests/e2e/test_assistant.py` | assistant page, ask route via session, send via UI, clear chat |
 | `tests/e2e/test_settings_support.py` | settings general + save via UI, support report page |
-| `tests/e2e/test_pwa_a11y.py` | manifest + icon assets, console errors on key pages, mobile viewport smoke |
+| `tests/e2e/test_pwa_a11y.py` | manifest + icon assets, no console errors on key pages, mobile viewport smoke, keyboard navigation |
+| `tests/e2e/test_network_errors.py` | friendly error flash on invalid input, unknown route returns 404 |
+| `tests/e2e/test_cross_browser.py` | chromium + firefox + webkit smoke on key pages (optional browsers, see below) |
 
 ## Harness (`tests/e2e/conftest.py`)
 
@@ -47,7 +49,7 @@ The suite runs headless; `pytest -p no:randomly` is not needed.
 
 ## Failure artifacts
 
-On failure, `dist/e2e-artifacts/<test-name>/` contains `screenshot.png`, `video.webm`, and `server.log`.
+On failure, `dist/e2e-artifacts/<test-name>/` contains `screenshot.png`, `video.webm`, `trace.zip`, and `server.log`.
 
 ## Writing tests
 
@@ -57,7 +59,10 @@ On failure, `dist/e2e-artifacts/<test-name>/` contains `screenshot.png`, `video.
 - **Locked flows** — `setup_app(...)` then `unlock()` first (most mutations require unlock + super password).
 - **Scoped form fills** — when a page has multiple inputs with the same `name`, fill via a scoped locator: `form = page.locator('form[action="/..."]'); form.locator('input[name="q"]').fill(...)`.
 - **Routes without a UI form** — use `page.request.post(url, form={...})` (note: `data=` sends JSON, which the CSRF middleware rejects; `form=` sends form-encoded).
+- **Keyboard navigation** — `test_keyboard_navigation_reaches_nav`: tabbing on the dashboard reaches the sidebar nav.
 - **Long flows** — add `@pytest.mark.timeout(N)` when the flow needs longer than the default (see `test_session_expires_after_idle`, which needs >60s because the app's minimum session timeout is 1 minute).
+
+**Cross-browser (optionally installed):** chromium smoke is required; Firefox and WebKit smoke run when installed locally: `python -m playwright install firefox webkit` (Linux may need `--with-deps`, e.g. `sudo apt-get install -y` per Playwright's list — or use `--with-deps` as root with sudo configured).
 
 ## Debugging
 

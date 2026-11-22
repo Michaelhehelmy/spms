@@ -115,8 +115,15 @@ def context(browser, request):
     art = ARTIFACTS / request.node.name
     art.mkdir(parents=True, exist_ok=True)
     ctx = browser.new_context(viewport={"width": 1280, "height": 900}, record_video_dir=str(art / "video"))
-    yield ctx
-    ctx.close()
+    ctx.tracing.start(screenshots=True, sources=True)
+    try:
+        yield ctx
+    finally:
+        try:
+            ctx.tracing.stop(path=str(art / "trace.zip"))
+        except Exception:
+            pass
+        ctx.close()
 
 
 @pytest.fixture

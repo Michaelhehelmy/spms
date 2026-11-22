@@ -54,3 +54,15 @@ def test_mobile_viewport_key_pages(e2e_server, browser):
             expect(page.locator("nav.sidebar a.nav-link").first).to_be_visible()
     finally:
         ctx.close()
+
+
+def test_keyboard_navigation_reaches_nav(e2e_server, page, setup_app, unlock):
+    base = e2e_server.base_url
+    setup_app("E2E Property")
+    unlock()
+    page.goto(base + "/")
+    seen: list[str] = []
+    for _ in range(15):
+        page.keyboard.press("Tab")
+        seen.append(page.evaluate("document.activeElement ? (document.activeElement.textContent || '') : ''"))
+    assert any("Dashboard" in text for text in seen)
