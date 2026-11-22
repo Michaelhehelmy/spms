@@ -1,0 +1,24 @@
+name: Other issue
+description: Anything that doesn't fit the other templates
+title: "[Other]: "
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Include context, version, OS, steps, and sanitized diagnostics as relevant.
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I checked existing issues/docs
+          required: false
+        - label: I removed secrets/private data from this report
+          required: true

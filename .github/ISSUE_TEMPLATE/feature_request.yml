@@ -1,0 +1,50 @@
+name: Feature request
+description: Suggest an improvement or new capability for SPMS
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem and the outcome you want. Clear use cases help prioritize.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use case
+      description: What problem are you trying to solve? Who is affected?
+      placeholder: As a property manager, I need...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like to see?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds or other approaches you considered.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Web UI
+        - Assistant
+        - Reservations / Guests
+        - POS / Inventory
+        - Accounting / Reports
+        - Install / Update / Packaging
+        - Native AppImage/Windows/macOS
+        - Docs
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, mockups, or examples.

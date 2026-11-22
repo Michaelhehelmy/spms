@@ -1,0 +1,67 @@
+name: Install / Setup / Update issue
+description: Problems installing, updating, repairing, or launching SPMS
+title: "[Install]: "
+labels: ["bug", "install"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Include the exact command, full output, and environment. Redact secrets/tokens. For dirty-tree recovery, try `REPAIR=1` (Unix) or `-Repair` (Windows) as documented.
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Android / Termux
+        - iOS / iSH
+        - WSL
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: method
+    attributes:
+      label: Install/update method
+      options:
+        - install.sh (curl/wget)
+        - setup.sh
+        - install_windows.ps1 / install_windows.cmd
+        - Native release binary/AppImage/dmg/exe
+        - Git clone + manual
+        - Docker / container
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: SPMS version / commit / tag
+      placeholder: e.g. v1.3.3 or commit hash
+  - type: textarea
+    id: command
+    attributes:
+      label: Command(s) run
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Full output / error
+      description: Include the full relevant output. Redact secrets.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: OS version, Python version, git version, disk permissions, PM_DATA_DIR, etc.
+      render: text

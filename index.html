@@ -142,9 +142,20 @@ curl -fsSL https://raw.githubusercontent.com/Michaelhehelmy/spms/main/scripts/in
           <input id="report-file" type="file" accept=".json,application/json" style="width:100%; margin-top:4px; color:var(--text);"/>
         </label>
         <button type="button" id="upload-report" class="primary">Upload &amp; send report</button>
-        <a class="btn" href="https://github.com/Michaelhehelmy/spms/issues/new" target="_blank" rel="noopener">Open GitHub issue manually</a>
+        <a class="btn" href="https://github.com/Michaelhehelmy/spms/issues/new/choose" target="_blank" rel="noopener">File issue (questionnaire)</a>
       </div>
       <p id="report-upload-status" class="muted" style="margin-top:10px;" aria-live="polite"></p>
+      <div class="muted" style="margin-top:8px; font-size:.92rem;">
+        <strong style="color:var(--text)">Issue questionnaires:</strong>
+        <a href="https://github.com/Michaelhehelmy/spms/issues/new?template=bug_report.yml" target="_blank" rel="noopener">Bug</a> ·
+        <a href="https://github.com/Michaelhehelmy/spms/issues/new?template=install_setup.yml" target="_blank" rel="noopener">Install/Setup</a> ·
+        <a href="https://github.com/Michaelhehelmy/spms/issues/new?template=native_package.yml" target="_blank" rel="noopener">Native/AppImage</a> ·
+        <a href="https://github.com/Michaelhehelmy/spms/issues/new?template=feature_request.yml" target="_blank" rel="noopener">Feature</a> ·
+        <a href="https://github.com/Michaelhehelmy/spms/issues/new?template=documentation.yml" target="_blank" rel="noopener">Docs</a> ·
+        <a href="https://github.com/Michaelhehelmy/spms/issues/new?template=performance.yml" target="_blank" rel="noopener">Performance</a> ·
+        <a href="https://github.com/Michaelhehelmy/spms/issues/new?template=question.yml" target="_blank" rel="noopener">Question</a> ·
+        <a href="https://github.com/Michaelhehelmy/spms/issues/new?template=other.yml" target="_blank" rel="noopener">Other</a>
+      </div>
       <p class="muted" style="margin-top:6px; font-size:.9rem;">Privacy: review the report before uploading. It should not contain passwords, secrets, tokens, session/recovery codes, or database/guest/payment records. Upload delivery depends on site configuration (Cloudflare Pages Function + GitHub token); if unavailable, download/attach the report to a GitHub issue manually.</p>
     </section>
 

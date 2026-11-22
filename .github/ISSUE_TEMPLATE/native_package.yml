@@ -1,0 +1,67 @@
+name: Native package / AppImage / Release issue
+description: Problems with native release assets (AppImage, .exe, .dmg, tar.gz, checksums)
+title: "[Native]: "
+labels: ["bug", "packaging"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For Linux AppImage no-FUSE issues, try: `chmod +x ./spms-linux-x64.AppImage && ./spms-linux-x64.AppImage --appimage-extract-and-run`. You can also use the plain binary or `.tar.gz`.
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: asset
+    attributes:
+      label: Release asset
+      options:
+        - Linux AppImage
+        - Linux binary
+        - Linux tar.gz
+        - macOS x64 dmg
+        - macOS arm64 dmg
+        - Windows exe
+        - SHA256SUMS.txt / checksums
+        - SBOM
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Release version
+      placeholder: e.g. v1.3.3
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps / command run
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior / error
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: OS version, desktop environment, FUSE/libfuse status, `file` output, terminal error, etc.
+      render: text

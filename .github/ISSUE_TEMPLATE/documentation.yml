@@ -1,0 +1,27 @@
+name: Documentation issue
+description: Report missing, unclear, outdated, or incorrect documentation
+title: "[Docs]: "
+labels: ["documentation"]
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Doc location
+      description: File path, URL, or section name.
+      placeholder: e.g. docs/NATIVE_BUILDS.md or landing page
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong or missing?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested fix / improvement
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context

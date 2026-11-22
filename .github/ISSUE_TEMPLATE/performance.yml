@@ -1,0 +1,32 @@
+name: Performance / reliability issue
+description: Report slowness, high resource use, crashes, or reliability problems
+title: "[Performance]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the slowness/crash/reliability issue and impact.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version / commit
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, hardware, install method, data size, browser/runtime.
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Logs / diagnostics (sanitized)
+      render: text

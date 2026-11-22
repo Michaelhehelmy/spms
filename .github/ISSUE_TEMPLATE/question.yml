@@ -1,0 +1,24 @@
+name: Question / support
+description: Ask a question or request help using SPMS
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check README/docs first. For bugs, use the Bug report template. Do not include secrets or private data.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What are you trying to do? OS, version, install method, etc.
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried?
