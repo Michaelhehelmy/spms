@@ -219,7 +219,11 @@ def _load_sklearn_router():
     try:
         import joblib  # type: ignore
 
-        path = Path(os.environ.get("ASSISTANT_SKLEARN_MODEL", str(DEFAULT_SKLEARN_MODEL_PATH)))
+        path = Path(
+            services.get_setting("assistant_sklearn_model_path", "")
+            or os.environ.get("ASSISTANT_SKLEARN_MODEL", "")
+            or str(DEFAULT_SKLEARN_MODEL_PATH)
+        )
         if not path.exists():
             _SKLEARN_CACHE = False
             return None
@@ -237,7 +241,11 @@ def _load_setfit_router():
     try:
         from setfit import SetFitModel  # type: ignore
 
-        path = Path(os.environ.get("ASSISTANT_SETFIT_MODEL_DIR", str(DEFAULT_SETFIT_MODEL_DIR)))
+        path = Path(
+            services.get_setting("assistant_setfit_model_dir", "")
+            or os.environ.get("ASSISTANT_SETFIT_MODEL_DIR", "")
+            or str(DEFAULT_SETFIT_MODEL_DIR)
+        )
         if not path.exists():
             _SETFIT_CACHE = False
             return None

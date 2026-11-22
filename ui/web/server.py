@@ -87,6 +87,12 @@ def create_app(*, init_db: bool = True, run_startup: bool = True) -> FastAPI:
             logger.exception("web_startup_warning_failed error=%s", _safe_detail(exc))
         services.init_db()
         services.set_language(services.get_setting("language", "en"))
+        # Best-effort: auto-pull Co-Camp assistant models from the models repo (non-blocking).
+        try:
+            from app_core.assistant import model_pull
+            model_pull.start_pull_on_startup()
+        except Exception:
+            logger.debug("assistant model pull startup failed", exc_info=True)
 
     app = FastAPI(title=f"{services.get_app_display_name()} Web UI")
     static_dir = Path(__file__).resolve().parent / "static"
