@@ -248,6 +248,27 @@ def _load_setfit_router():
         return None
 
 
+def _first_prediction(labels):
+    """Extract the single predicted label from a SetFitModel.predict() result.
+
+    SetFitModel.predict returns a numpy.ndarray of labels (older versions may
+    return a list/tuple, some paths a plain string). Returns the label string
+    or None.
+    """
+    if isinstance(labels, str):
+        return labels or None
+    if isinstance(labels, (list, tuple)):
+        return labels[0] if labels else None
+    tolist = getattr(labels, "tolist", None)
+    if callable(tolist):
+        values = tolist()
+        return values[0] if values else None
+    try:
+        return labels[0] if len(labels) > 0 else None
+    except Exception:
+        return None
+
+
 def _predict_intent_ml(text: str):
     mode = (os.environ.get("ASSISTANT_NLU") or "auto").strip().lower()
     if mode in ("auto", "setfit"):
@@ -255,7 +276,9 @@ def _predict_intent_ml(text: str):
         if model is not None:
             try:
                 labels = model.predict([text])
-                label = labels[0] if isinstance(labels, (list, tuple)) else labels
+                label = _first_prediction(labels)
+                if not label:
+                    return None
                 conf = 0.7
                 try:
                     probs = model.predict_proba([text])
