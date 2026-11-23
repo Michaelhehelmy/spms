@@ -89,3 +89,21 @@ def test_get_pricing_quote_flow(e2e_server, page, setup_app, unlock):
     assert "quote=1" in page.url
     expect(page.get_by_role("heading", name="Pricing quote (suggested)")).to_be_visible()
     expect(page.get_by_text("Suggested nightly").first).to_be_visible()
+
+
+def test_checkin_checkout_via_detail(e2e_server, page, setup_app, unlock):
+    base = e2e_server.base_url
+    setup_app("E2E Property")
+    unlock()
+    _fill_create_form(page, base, "Checkin Guest")
+    page.get_by_role("button", name="Create reservation").click()
+    page.wait_for_url(lambda u: "/reservations" in u)
+    page.wait_for_load_state("networkidle")
+    page.locator('a[href^="/reservations/"]:not([href$="/reservations/groups"])').first.click()
+    page.wait_for_load_state("networkidle")
+    assert "/reservations/" in page.url and page.url != f"{base}/reservations?tab=list"
+    expect(page.get_by_role("button", name="Check in")).to_be_visible()
+    page.get_by_role("button", name="Check in").click()
+    page.wait_for_load_state("networkidle")
+    expect(page.get_by_text("Checked in").first).to_be_visible()
+    expect(page.get_by_role("button", name="Check out")).to_be_visible()

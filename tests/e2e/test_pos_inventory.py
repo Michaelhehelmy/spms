@@ -62,3 +62,21 @@ def test_pos_inventory_search(e2e_server, page, setup_app, unlock, seed_inventor
     page.get_by_role("button", name="Search").click()
     page.wait_for_load_state("networkidle")
     expect(page.locator("td:has-text('E2E Supplies Item')").first).to_be_visible()
+
+
+def test_walkin_sale_flow(e2e_server, page, setup_app, unlock):
+    base = e2e_server.base_url
+    setup_app("E2E Property")
+    unlock()
+    page.goto(base + "/pos?tab=sell")
+    form = page.locator('form[action="/pos/cart/add"]:has-text("Add to cart")')
+    form.locator('input[name="desc"]').fill("E2E Walkin Item")
+    form.locator('input[name="qty"]').fill("1")
+    form.locator('input[name="price"]').fill("8.50")
+    form.get_by_role("button", name="Add to cart").click()
+    page.wait_for_load_state("networkidle")
+    invoice_responses: list = []
+    page.on("response", lambda r: invoice_responses.append(r) if r.url.startswith(base + "/files/invoice/") else None)
+    page.get_by_role("button", name="Complete walk-in sale & get receipt").click()
+    page.wait_for_load_state("networkidle")
+    assert invoice_responses and invoice_responses[0].status == 200
