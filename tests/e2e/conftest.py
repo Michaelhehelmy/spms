@@ -34,6 +34,28 @@ SERVER_ENV = {
 }
 
 
+# Re-export root tests/conftest.py helpers so `from conftest import ...` in
+# top-level tests still resolves when pytest collects tests/e2e/conftest.py.
+def _reexport_root_conftest():
+    import importlib.util as _ilu
+
+    root = Path(__file__).resolve().parents[1] / "conftest.py"
+    if not root.exists():
+        return
+    spec = _ilu.spec_from_file_location("_root_tests_conftest", root)
+    if spec is None or spec.loader is None:
+        return
+    mod = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    for k, v in vars(mod).items():
+        if k.startswith("__"):
+            continue
+        globals().setdefault(k, v)
+
+
+_reexport_root_conftest()
+
+
 def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))

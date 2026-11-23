@@ -4,6 +4,10 @@ Covers: tampered CSRF token → 400; missing CSRF token → 400.
 """
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("playwright")
+
 
 def _responses_for(page, url):
     responses = []
