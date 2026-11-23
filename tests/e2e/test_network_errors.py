@@ -16,7 +16,7 @@ def test_invalid_price_shows_friendly_error_flash(e2e_server, page, setup_app, u
     setup_app("E2E Property")
     unlock()
     page.goto(base + "/pos?tab=sell")
-    form = page.locator('form[action="/pos/cart/add"]:has-text("Add to cart")')
+    form = page.locator('.panel:has(h3:has-text("Add custom item to walk-in cart")) form[action="/pos/cart/add"]')
     form.locator('input[name="desc"]').fill("E2E Error Item")
     form.locator('input[name="qty"]').fill("1")
     form.locator('input[name="price"]').fill("-5")

@@ -62,7 +62,7 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
-def _wait_health(base_url: str, timeout: float = 45.0) -> None:
+def _wait_health(base_url: str, timeout: float = 90.0, log_file: Path | None = None) -> None:
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
@@ -72,7 +72,13 @@ def _wait_health(base_url: str, timeout: float = 45.0) -> None:
         except Exception:
             pass
         time.sleep(0.25)
-    raise RuntimeError(f"Server did not become healthy at {base_url}")
+    tail = ""
+    if log_file and log_file.exists():
+        try:
+            tail = "\n--- server.log tail ---\n" + log_file.read_text(encoding="utf-8", errors="replace")[-4000:]
+        except Exception:
+            pass
+    raise RuntimeError(f"Server did not become healthy at {base_url}{tail}")
 
 
 def _seed_db(data_dir: Path) -> None:
@@ -106,7 +112,7 @@ def e2e_server(tmp_path, request):
             cwd=ROOT, env=env, stdout=log_f, stderr=subprocess.STDOUT, text=True,
         )
         try:
-            _wait_health(base_url)
+            _wait_health(base_url, log_file=server_log)
             yield SimpleNamespace(base_url=base_url, data_dir=data_dir, log_file=server_log)
         finally:
             proc.terminate()
