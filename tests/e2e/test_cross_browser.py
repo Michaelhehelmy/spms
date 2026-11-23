@@ -7,6 +7,7 @@ the browser is installed locally (optionally installed on CI/local: see
 from __future__ import annotations
 
 import pytest
+pytest.importorskip("playwright")
 from playwright.sync_api import expect
 
 BROWSERS = ["chromium", "firefox", "webkit"]

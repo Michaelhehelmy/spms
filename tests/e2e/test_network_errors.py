@@ -5,6 +5,9 @@ rejects a negative price server-side), and an unknown route returns a 404.
 """
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("playwright")
 from playwright.sync_api import expect
 
 

@@ -5,8 +5,11 @@ the day filter (?day=) on the dashboard.
 """
 from __future__ import annotations
 
+import pytest
+
 import re
 
+pytest.importorskip("playwright")
 from playwright.sync_api import expect
 
 

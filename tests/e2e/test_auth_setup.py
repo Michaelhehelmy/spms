@@ -8,6 +8,7 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
+pytest.importorskip("playwright")
 from playwright.sync_api import expect
 
 

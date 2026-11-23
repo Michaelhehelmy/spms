@@ -5,9 +5,12 @@ check-in/check-out buttons, record payment, and the "Get pricing quote" flow.
 """
 from __future__ import annotations
 
+import pytest
+
 from datetime import datetime, timedelta
 import re
 
+pytest.importorskip("playwright")
 from playwright.sync_api import expect
 
 

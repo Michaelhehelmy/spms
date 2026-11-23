@@ -5,6 +5,9 @@ clearing the cart, and searching the inventory list on the POS page.
 """
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("playwright")
 from playwright.sync_api import expect
 
 

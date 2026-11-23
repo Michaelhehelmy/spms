@@ -5,6 +5,9 @@ and generating tasks for dirty rooms.
 """
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("playwright")
 from playwright.sync_api import expect
 import re
 

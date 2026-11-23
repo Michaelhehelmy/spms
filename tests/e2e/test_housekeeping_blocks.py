@@ -5,8 +5,11 @@ then resolve the active block.
 """
 from __future__ import annotations
 
+import pytest
+
 from datetime import datetime, timedelta
 
+pytest.importorskip("playwright")
 from playwright.sync_api import expect
 
 

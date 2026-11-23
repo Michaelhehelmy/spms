@@ -5,6 +5,7 @@ Covers: guest search, guest 360 portfolio open, guest profile edit via UI.
 from __future__ import annotations
 
 import pytest
+pytest.importorskip("playwright")
 from playwright.sync_api import expect
 
 

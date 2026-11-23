@@ -6,6 +6,7 @@ desktop; sidebar present on mobile viewport; app renders at a phone viewport.
 from __future__ import annotations
 
 import pytest
+pytest.importorskip("playwright")
 from playwright.sync_api import expect
 
 NAV_LINKS = [

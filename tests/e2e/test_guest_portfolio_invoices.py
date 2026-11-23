@@ -4,9 +4,12 @@ Covers: the guest portfolio (360° view) lists saved invoice files per stay.
 """
 from __future__ import annotations
 
+import pytest
+
 import re
 from datetime import datetime, timedelta
 
+pytest.importorskip("playwright")
 from playwright.sync_api import expect
 
 

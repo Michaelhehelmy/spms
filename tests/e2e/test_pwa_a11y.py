@@ -6,6 +6,9 @@ viewport smoke on key pages.
 """
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("playwright")
 from playwright.sync_api import expect
 
 KEY_PAGES = ["/", "/reservations", "/guests", "/housekeeping", "/accounting", "/pos", "/reports", "/settings", "/assistant", "/support/report"]
