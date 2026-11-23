@@ -7,6 +7,7 @@ from __future__ import annotations
 import pytest
 
 pytest.importorskip("playwright")
+from playwright.sync_api import expect
 
 
 def _responses_for(page, url):
@@ -34,6 +35,7 @@ def test_csrf_missing_token_rejected(e2e_server, page, setup_app):
     base = e2e_server.base_url
     setup_app("E2E Property")
     page.goto(base + "/unlock")
+    expect(page.locator('input[name="password"]')).to_be_visible()
     page.evaluate(
         "() => { const el = document.querySelector('form[action=\"/unlock\"] input[name=\"csrf\"]');"
         " if (el) el.remove(); }"
