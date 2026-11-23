@@ -35,6 +35,11 @@ def test_guest_search_and_open_portfolio(e2e_server, page, setup_app, unlock, se
     assert page.url == f"{base}/guests/{gid}"
     expect(page.get_by_text("360° view")).to_be_visible()
     expect(page.get_by_text("Alice Example").first).to_be_visible()
+    # Deeper portfolio sections render: profile, trips, POS/activity, payments.
+    expect(page.get_by_text("Profile & contact").first).to_be_visible()
+    expect(page.get_by_text("Trips / Reservations").first).to_be_visible()
+    expect(page.get_by_text("All POS / activity").first).to_be_visible()
+    expect(page.get_by_text("All payments").first).to_be_visible()
 
 
 def test_guest_edit_profile_via_ui(e2e_server, page, setup_app, unlock, seed_guest, password):

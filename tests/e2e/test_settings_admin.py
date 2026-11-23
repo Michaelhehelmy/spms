@@ -46,3 +46,18 @@ def test_settings_rooms_add_room(e2e_server, page, setup_app, unlock):
     page.get_by_role("button", name="Add room").click()
     page.wait_for_load_state("networkidle")
     expect(page.get_by_text(re.compile(r"Room added \(#\d+\)"))).to_be_visible()
+
+
+def test_settings_rate_plans_add(e2e_server, page, setup_app, unlock, password):
+    base = e2e_server.base_url
+    setup_app("E2E Property")
+    unlock()
+    page.goto(base + "/settings/rate-plans")
+    form = page.locator('form[action="/settings/rate-plans/add"]')
+    form.locator('input[name="name"]').fill("E2E Plan")
+    form.locator('input[name="modifier"]').fill("5")
+    form.locator('input[name="password"]').fill(password)
+    form.get_by_role("button", name="Add").click()
+    page.wait_for_load_state("networkidle")
+    expect(page.get_by_text("E2E Plan").first).to_be_visible()
+    expect(page.get_by_text("+5.00 EGP").first).to_be_visible()

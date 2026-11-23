@@ -142,3 +142,11 @@ def test_accounting_run_night_audit(e2e_server, page, setup_app, unlock):
     page.get_by_role("button", name="Run & record snapshot").click()
     page.wait_for_load_state("networkidle")
     expect(page.get_by_text("Night audit snapshot recorded (advisory)")).to_be_visible()
+
+
+def test_accounting_ledger_tab(e2e_server, page, setup_app, unlock):
+    base = e2e_server.base_url
+    setup_app("E2E Property")
+    unlock()
+    page.goto(base + "/accounting?tab=ledger")
+    expect(page.get_by_role("heading", name="Recent ledger")).to_be_visible()

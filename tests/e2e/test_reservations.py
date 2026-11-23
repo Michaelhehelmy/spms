@@ -6,6 +6,7 @@ check-in/check-out buttons, record payment, and the "Get pricing quote" flow.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import re
 
 from playwright.sync_api import expect
 
@@ -107,3 +108,60 @@ def test_checkin_checkout_via_detail(e2e_server, page, setup_app, unlock):
     page.wait_for_load_state("networkidle")
     expect(page.get_by_text("Checked in").first).to_be_visible()
     expect(page.get_by_role("button", name="Check out")).to_be_visible()
+
+
+def _open_new_reservation(page, base, guest_name):
+    _fill_create_form(page, base, guest_name)
+    page.get_by_role("button", name="Create reservation").click()
+    page.wait_for_url(lambda u: "/reservations" in u)
+    page.wait_for_load_state("networkidle")
+    detail_link = page.locator('a[href^="/reservations/"]:not([href$="/reservations/groups"])').first
+    rid = int(detail_link.get_attribute("href").split("/reservations/")[-1])
+    detail_link.click()
+    page.wait_for_load_state("networkidle")
+    assert "/reservations/" in page.url
+    return rid
+
+
+def test_groups_create_flow(e2e_server, page, setup_app, unlock):
+    base = e2e_server.base_url
+    setup_app("E2E Property")
+    unlock()
+    page.goto(base + "/reservations/groups")
+    expect(page.get_by_role("heading", name="Reservation Groups")).to_be_visible()
+    expect(page.get_by_role("heading", name="Create group")).to_be_visible()
+    page.fill('input[name="name"]', "E2E Group Alpha")
+    page.get_by_role("button", name="Create group").click()
+    page.wait_for_load_state("networkidle")
+    expect(page.get_by_text(re.compile(r"Group #\d+ created"))).to_be_visible()
+
+
+def test_group_add_reservation_flow(e2e_server, page, setup_app, unlock):
+    base = e2e_server.base_url
+    setup_app("E2E Property")
+    unlock()
+    rid = _open_new_reservation(page, base, "Grouped Guest")
+    # Create the group.
+    page.goto(base + "/reservations/groups")
+    page.fill('input[name="name"]', "E2E Group Beta")
+    page.get_by_role("button", name="Create group").click()
+    page.wait_for_load_state("networkidle")
+    # Add the reservation to the group via the add form.
+    page.select_option('select[name="group_id"]', index=0)
+    page.select_option('select[name="reservation_id"]', value=str(rid))
+    page.get_by_role("button", name="Add to group").click()
+    page.wait_for_load_state("networkidle")
+    expect(page.get_by_text("Reservation added to group")).to_be_visible()
+
+
+def test_invoice_generation_via_detail(e2e_server, page, setup_app, unlock):
+    base = e2e_server.base_url
+    setup_app("E2E Property")
+    unlock()
+    _open_new_reservation(page, base, "Invoice Guest")
+    expect(page.get_by_role("button", name="Generate invoice")).to_be_visible()
+    invoice_responses: list = []
+    page.on("response", lambda r: invoice_responses.append(r) if r.url.startswith(base + "/files/invoice/") else None)
+    page.get_by_role("button", name="Generate invoice").click()
+    page.wait_for_load_state("networkidle")
+    assert invoice_responses and invoice_responses[0].status == 200
