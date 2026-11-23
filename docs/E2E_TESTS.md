@@ -25,14 +25,21 @@ The suite runs headless; `pytest -p no:randomly` is not needed.
 |---|---|
 | `tests/e2e/test_auth_setup.py` | setup wizard, unlock success/wrong password/lock, sensitive-action guard, session expiry |
 | `tests/e2e/test_dashboard_nav.py` | dashboard widgets, 10 nav links, mobile viewport |
+| `tests/e2e/test_dashboard_ops.py` | dashboard Arrivals/Departures/Stayovers sections, day filter (?day=) |
 | `tests/e2e/test_guests.py` | guest search, 360° portfolio (+ profile/trips/POS/payments sections), profile edit |
+| `tests/e2e/test_guest_portfolio_invoices.py` | guest portfolio: invoice files listed per stay |
 | `tests/e2e/test_reservations.py` | create reservation, detail page, record payment, pricing quote, check-in/check-out via detail, reservation groups create/add, invoice generation from folio |
 | `tests/e2e/test_pos_inventory.py` | POS sell page, add custom item to cart, clear cart, inventory search, walk-in sale flow |
+| `tests/e2e/test_pos_activities.py` | POS Activities tab: register forms + registered activities |
 | `tests/e2e/test_housekeeping.py` | housekeeping page, create task, generate tasks for dirty rooms |
 | `tests/e2e/test_housekeeping_blocks.py` | room block create + resolve (password-protected) |
 | `tests/e2e/test_accounting_reports.py` | accounting overview/expenses/payments/shifts, shift movement, P&L report, refund flow, void expense, night audit run, ledger tab |
 | `tests/e2e/test_assistant.py` | assistant page, ask route via session, send via UI, clear chat |
+| `tests/e2e/test_csrf.py` | CSRF: tampered token → 400, missing token → 400 |
+| `tests/e2e/test_reports_extended.py` | reports: analytics export, invoices list shows generated reservation invoice |
 | `tests/e2e/test_settings_admin.py` | settings: apply branding, Backup now, add room (Rooms & Plans tab), add rate plan (Rooms & Plans → Rate Plans) |
+| `tests/e2e/test_settings_data.py` | Settings Seed & Data tab: loads, inventory CSV export (current + template), seed config JSON export |
+| `tests/e2e/test_settings_users.py` | Users & Roles admin: page loads, add user via UI (super password) |
 | `tests/e2e/test_settings_support.py` | settings general + save via UI, support report page |
 | `tests/e2e/test_pwa_a11y.py` | manifest + icon assets, no console errors on key pages, mobile viewport smoke, keyboard navigation |
 | `tests/e2e/test_network_errors.py` | friendly error flash on invalid input, unknown route returns 404 |
