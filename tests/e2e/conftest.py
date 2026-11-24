@@ -15,6 +15,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,6 +26,7 @@ SRC = ROOT / "src"
 
 TEST_PASSWORD = "e2e-pass-123"
 ARTIFACTS = ROOT / "dist" / "e2e-artifacts"
+DEMO_DIR = ROOT / "dist" / "demo-videos"
 
 SERVER_ENV = {
     "PM_WEB_SECRET_KEY": "e2e-test-secret-" + "x" * 48,
@@ -191,9 +193,75 @@ def csrf(page) -> str:
     return page.locator('input[name="csrf"]').first.input_value()
 
 
+def record_video(page, name: str) -> str:
+    """Save the page's Playwright video to dist/demo-videos/<name>.webm."""
+    DEMO_DIR.mkdir(parents=True, exist_ok=True)
+    page.wait_for_timeout(300)  # brief settle, no long blank lead-in
+    page.wait_for_load_state("networkidle")
+    src = None
+    try:
+        vid = page.video
+        src = vid.path() if vid else None
+    except Exception:
+        src = None
+    dst = str(DEMO_DIR / f"{name}.webm")
+    if src and Path(src) != Path(dst):
+        shutil.copy(src, dst)
+    return dst
+
+
+def caption(page, text: str, duration: float = 2.5) -> None:
+    """Show a caption overlay on the page (silent demo videos)."""
+    page.evaluate(
+        """([text, duration]) => {
+            let el = document.getElementById('demo-caption');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'demo-caption';
+                Object.assign(el.style, {
+                    position: 'fixed', left: '50%', bottom: '24px',
+                    transform: 'translateX(-50%)', maxWidth: '85%',
+                    padding: '10px 16px', background: 'rgba(18,26,51,0.85)',
+                    color: '#fff', font: 'bold 18px/1.3 sans-serif',
+                    borderRadius: '8px', zIndex: '2147483000',
+                    textAlign: 'center', whiteSpace: 'nowrap',
+                });
+                document.body.appendChild(el);
+            }
+            el.textContent = text;
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, duration * 1000);
+        }""",
+        [text, duration],
+    )
+    page.wait_for_timeout(int(duration * 1000))
+
+
+def _setup_unlock(page, e2e_server):
+    base = e2e_server.base_url
+    page.goto(base + "/setup")
+    page.fill('input[name="display_name"]', "E2E Property")
+    page.select_option('select[name="animation"]', "reveal")
+    page.click('button[type="submit"]')
+    page.wait_for_url(lambda url: url == base + "/")
+    page.goto(base + "/unlock")
+    page.fill('input[name="password"]', "e2e-pass-123")
+    page.click('button[type="submit"]')
+    page.wait_for_url(lambda url: url == base + "/")
+
+
+def _fill_create_form(page, base, guest_name):
+    page.goto(base + "/reservations?tab=create")
+    page.fill('input[name="guest_name"]', guest_name)
+    page.select_option("select[name=room_id]", index=0)
+    page.fill("input[name=check_in]", datetime.now().strftime("%Y-%m-%d"))
+    page.fill("input[name=check_out]", (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d"))
+    page.fill('input[name="rate"]', "100")
+
+
 @pytest.fixture
 def setup_app(page, e2e_server):
-    def _setup(name: str = "E2E Property"):
+    def _setup(name: str = "Acadia Camp"):
         base = e2e_server.base_url
         page.goto(base + "/setup")
         page.fill('input[name="display_name"]', name)
