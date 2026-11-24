@@ -171,6 +171,11 @@ def test_runtime_talking_rephrase_data_str_exception_and_chat_paths(monkeypatch)
 
 
 def test_feedback_loader_and_ml_branches(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        feedback.services,
+        "get_setting",
+        lambda key, default="": "" if key in {"assistant_setfit_model_dir", "assistant_sklearn_model_path"} else default,
+    )
     # sklearn path success (123-125)
     model_path = tmp_path / "m.joblib"
     model_path.write_bytes(b"x")
