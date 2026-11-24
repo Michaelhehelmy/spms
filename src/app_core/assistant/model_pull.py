@@ -81,7 +81,7 @@ def _fetch(url: str) -> bytes:
     parsed = urlparse(url)
     if parsed.scheme not in ("https", "http") or not parsed.netloc:
         raise ValueError(f"Unsupported model URL scheme: {parsed.scheme!r}")
-    with urllib.request.urlopen(url, timeout=_FETCH_TIMEOUT) as resp:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+    with urllib.request.urlopen(url, timeout=_FETCH_TIMEOUT) as resp:  # nosec B310 - scheme validated to https/http above; nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
         return resp.read()
 
 
@@ -148,6 +148,8 @@ def pull_models_on_startup(repo_url: str | None = None) -> dict:
     Returns a summary dict: ``{"repo", "downloaded", "skipped", "failed",
     "applied"}``.  Never raises; all failures are logged.
     """
+    if _is_test_env():
+        return {"repo": repo_url or "", "downloaded": [], "skipped": [], "failed": [], "applied": False, "skipped_reason": "test_env"}
     summary: dict[str, Any] = {"repo": "", "downloaded": [], "skipped": [], "failed": [], "applied": False}
     if _is_disabled():
         logger.info("assistant models: auto-pull disabled (assistant_models_auto_pull=false)")
@@ -216,8 +218,22 @@ def pull_models_on_startup(repo_url: str | None = None) -> dict:
     return summary
 
 
-def start_pull_on_startup() -> threading.Thread:
+def _is_test_env() -> bool:
+    import sys
+
+    return bool(
+        os.environ.get("PYTEST_CURRENT_TEST")
+        or os.environ.get("SPMS_DISABLE_MODEL_PULL")
+        or "pytest" in sys.modules
+    )
+
+
+def start_pull_on_startup() -> threading.Thread | None:
     """Start ``pull_models_on_startup`` in a daemon thread (best-effort, never blocks)."""
+    if _is_test_env():
+        logger.debug("assistant models: skipping auto-pull in test environment")
+        return None
+
     def _run() -> None:
         try:
             pull_models_on_startup()
