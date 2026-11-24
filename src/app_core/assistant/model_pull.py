@@ -36,6 +36,7 @@ import threading
 import urllib.request
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from .. import services
 from ..paths import DATA_DIR
@@ -77,7 +78,10 @@ def _sha256(path: Path) -> str:
 
 
 def _fetch(url: str) -> bytes:
-    with urllib.request.urlopen(url, timeout=_FETCH_TIMEOUT) as resp:
+    parsed = urlparse(url)
+    if parsed.scheme not in ("https", "http") or not parsed.netloc:
+        raise ValueError(f"Unsupported model URL scheme: {parsed.scheme!r}")
+    with urllib.request.urlopen(url, timeout=_FETCH_TIMEOUT) as resp:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
         return resp.read()
 
 

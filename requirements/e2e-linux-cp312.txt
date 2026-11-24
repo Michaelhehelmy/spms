@@ -1,0 +1,6 @@
+# E2E test dependencies (Linux, CPython 3.12). Hash-pinned for CI supply-chain.
+# Regenerate with: uv pip compile --generate-hashes --python-platform x86_64-manylinux2014 --python-version 3.12 ...
+greenlet==3.3.2 \
+    --hash=sha256:43e99d1749147ac21dde49b99c9abffcbc1e2d55c67501465ef0930d6e78e070
+playwright==1.65.2 \
+    --hash=sha256:58932d35f56767ab7ebcdd3d4a733bfb3e62a1a5bc43c08e28b9fa9b3e61cf33
