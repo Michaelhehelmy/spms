@@ -36,6 +36,98 @@ def _env() -> dict[str, str]:
     return env
 
 
+def _supports_color() -> bool:
+    if os.environ.get("NO_COLOR"):
+        return False
+    if os.environ.get("FORCE_COLOR"):
+        return True
+    try:
+        return bool(getattr(sys.stdout, "isatty", lambda: False)())
+    except Exception:
+        return False
+
+
+_COLOR = _supports_color()
+_C = {
+    "r": "\033[0m" if _COLOR else "",
+    "b": "\033[1m" if _COLOR else "",
+    "dim": "\033[2m" if _COLOR else "",
+    "cyan": "\033[36m" if _COLOR else "",
+    "green": "\033[32m" if _COLOR else "",
+    "yellow": "\033[33m" if _COLOR else "",
+    "magenta": "\033[35m" if _COLOR else "",
+    "blue": "\033[34m" if _COLOR else "",
+    "white": "\033[97m" if _COLOR else "",
+    "bg_blue": "\033[44m" if _COLOR else "",
+}
+
+
+def _term_width() -> int:
+    try:
+        import shutil as _shutil
+
+        return max(40, min(100, _shutil.get_terminal_size((80, 24)).columns))
+    except Exception:
+        return 80
+
+
+SPMS_LOGO = [
+    r"          /\          ",
+    r"         /  \         ",
+    r"        / /\ \        ",
+    r"       / /__\ \       ",
+    r"      /________\      ",
+    r"      |  ____  |      ",
+    r"      | | [] | |      ",
+    r"      |_|____|_|      ",
+]
+
+
+def _animate_startup() -> None:
+    """Short terminal startup animation with moving character and logo reveal."""
+    if not getattr(sys.stdout, "isatty", lambda: False)():
+        return
+    width = _term_width()
+    # Moving hut character across a line
+    track_w = max(20, min(40, width - 20))
+    hut = "[^_^]/\\"
+    for i in range(track_w + 1):
+        pad = " " * i
+        tail = "." * max(0, track_w - i)
+        line = f"\r  {_C['cyan']}{pad}{hut}{_C['dim']}{tail}{_C['r']} {_C['green']}loading SPMS{_C['r']}"
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        time.sleep(0.012)
+    sys.stdout.write("\r" + " " * (track_w + 30) + "\r")
+    sys.stdout.flush()
+
+    # Logo reveal
+    colors = [_C["cyan"], _C["cyan"], _C["blue"], _C["blue"], _C["yellow"], _C["green"], _C["green"], _C["magenta"]]
+    for idx, row in enumerate(SPMS_LOGO):
+        color = colors[idx % len(colors)]
+        sys.stdout.write(f"  {color}{_C['b']}{row}{_C['r']}\n")
+        sys.stdout.flush()
+        time.sleep(0.03)
+    title = "Super Property Management System"
+    sys.stdout.write(f"  {_C['b']}{_C['white']}{title}{_C['r']}\n")
+    sys.stdout.write(f"  {_C['dim']}{'─' * min(len(title) + 4, width - 4)}{_C['r']}\n\n")
+    sys.stdout.flush()
+    time.sleep(0.08)
+
+
+def _print_banner(compact: bool = False) -> None:
+    width = _term_width()
+    if not compact:
+        colors = [_C["cyan"], _C["cyan"], _C["blue"], _C["blue"], _C["yellow"], _C["green"], _C["green"], _C["magenta"]]
+        for idx, row in enumerate(SPMS_LOGO):
+            color = colors[idx % len(colors)]
+            print(f"  {color}{_C['b']}{row}{_C['r']}")
+    line = "─" * min(52, width - 4)
+    print(f"  {_C['dim']}{line}{_C['r']}")
+    print(f"  {_C['b']}{_C['cyan']}SPMS{_C['r']} {_C['dim']}—{_C['r']} {_C['white']}Web Launcher{_C['r']}")
+    print(f"  {_C['dim']}{line}{_C['r']}")
+
+
 def _clear():
     try:
         if os.name == "nt":
@@ -766,18 +858,21 @@ def menu_loop(default_host: str = "127.0.0.1", default_port: int = 8000) -> int:
     except Exception:
         host, port = "127.0.0.1", 8000
     last = None
+    first = True
     while True:
         _clear()
         is_non_local = host not in ("127.0.0.1", "localhost", "::1")
         secret_set = bool((os.environ.get("PM_WEB_SECRET_KEY") or "").strip())
-        print("=" * 56)
-        print("  SPMS — Web Launcher")
-        print("=" * 56)
-        print("  [1] Start Web UI (browser, --workers 1)")
-        print("  [s] Web settings (host/port)")
-        print("  [l] LAN mode (bind 0.0.0.0) / show network URLs")
-        print("  [d] Diagnostics / create issue report (debug info)")
-        print("  [q] Quit")
+        if first:
+            _animate_startup()
+            first = False
+        else:
+            _print_banner(compact=True)
+        print(f"  {_C['green']}[1]{_C['r']} Start Web UI {_C['dim']}(browser, --workers 1){_C['r']}")
+        print(f"  {_C['cyan']}[s]{_C['r']} Web settings {_C['dim']}(host/port){_C['r']}")
+        print(f"  {_C['yellow']}[l]{_C['r']} LAN mode {_C['dim']}(bind 0.0.0.0 / show network URLs){_C['r']}")
+        print(f"  {_C['magenta']}[d]{_C['r']} Diagnostics / create issue report")
+        print(f"  {_C['dim']}[q]{_C['r']} Quit")
         if last is not None:
             print(f"\n  Last session exited with code: {last}")
         print(f"\n  Web target: http://{host}:{port}  {'(LAN/shared)' if is_non_local else '(local)'}")

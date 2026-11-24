@@ -189,8 +189,16 @@ jobs:
                   && chmod +x "$WORKDIR_APP/appimagetool" \
                   && APPIMAGE_TOOL="$WORKDIR_APP/appimagetool"
               fi
+              RUNTIME_ARGS=()
+              RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${ARCH_APPIMAGE}"
+              if curl -fsSL -o "$WORKDIR_APP/runtime" "$RUNTIME_URL"; then
+                chmod +x "$WORKDIR_APP/runtime"
+                RUNTIME_ARGS=(--runtime-file "$WORKDIR_APP/runtime")
+              else
+                echo "type2-runtime download failed; using appimagetool default runtime"
+              fi
               if [ -n "$APPIMAGE_TOOL" ]; then
-                ARCH="$ARCH_APPIMAGE" "$APPIMAGE_TOOL" "$WORKDIR_APP/AppDir" "$APPIMAGE_OUT" || echo "AppImage packaging failed (binary artifact still available)"
+                ARCH="$ARCH_APPIMAGE" "$APPIMAGE_TOOL" "${RUNTIME_ARGS[@]}" "$WORKDIR_APP/AppDir" "$APPIMAGE_OUT" || echo "AppImage packaging failed (binary artifact still available)"
               else
                 echo "appimagetool unavailable; skipping AppImage (binary artifact still available)"
               fi
