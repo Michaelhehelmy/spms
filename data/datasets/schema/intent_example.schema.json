@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "text",
+    "label"
+  ],
+  "properties": {
+    "text": {
+      "type": "string"
+    },
+    "label": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "slots": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

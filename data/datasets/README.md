@@ -1,65 +1,80 @@
-# Assistant Training Datasets
+# SPMS / Co-Camp Assistant Datasets
 
-This folder holds datasets used to train/fine-tune the SPMS assistant.
+Versioned dataset system for making Co-Camp smart at **SPMS business, app, and operations**, aware of **business history**, and **smarter over time**.
 
-## Goals
-- Improve intent understanding (NLU/exemplars).
-- Fine-tune a small local GGUF model (SmolLM2-360M-Instruct) for grounded rephrasing/answers.
-- Keep training data app-specific and sanitized (no secrets, no unnecessary PII).
-
-## Recommended layout
+## Layout
 
 ```text
 data/datasets/
   README.md
-  manifest.json              # dataset registry / provenance
-  raw/                       # downloaded/original datasets (not committed if large/private)
-  processed/
-    intent_examples.jsonl    # {"text","label","slots"?,"source"}
-    grounded_chat.jsonl      # {"messages":[...]} or {"instruction","input","output"}
-    eval.jsonl               # held-out eval set
+  manifest.json                 # versioned dataset registry
+  schema/                       # JSON schemas
+  curated/                      # curated/generated datasets (reviewable)
+    business_history.jsonl      # synthetic/anonymized business history snapshots + QA
+    app_operations_knowledge.jsonl
+    feedback_bootstrap.jsonl
+  history/                      # optional real/sanitized historical snapshots
+  snapshots/                    # versioned immutable snapshots
+  processed/                    # model-ready outputs
+    intent_examples.jsonl
+    grounded_chat.jsonl
+    train.jsonl
+    eval.jsonl
+  raw/                          # external/raw datasets (not committed if large/private)
 ```
 
-## Target format for SmolLM2 fine-tuning (grounded chat)
+## Core sources
 
-`processed/grounded_chat.jsonl` (one JSON per line):
+- `data/assistant_nlu/intents_seed.jsonl` - intent routing examples covering all SPMS intents.
+- `data/assistant_nlu/feedback.jsonl` - real feedback/corrections + curated bootstrap; **sanitize PII before sharing**.
+- `co-camp/co_camp/data/persona_examples.jsonl` - Co-Camp persona, app how-to, ops/business/history awareness.
+- `data/assistant_knowledge/agent_brain.json` - curated app knowledge/tools/workflows/boundaries.
+
+## Grounded chat format
+
+`processed/grounded_chat.jsonl`:
 
 ```json
 {
   "messages": [
-    {"role": "system", "content": "You are SPMS assistant. Use ONLY provided grounded data. Do not invent facts."},
+    {"role": "system", "content": "You are Co-Camp... Use ONLY grounded data..."},
     {"role": "user", "content": "Manager question: ...\n\nGrounded data (JSON): ..."},
-    {"role": "assistant", "content": "Grounded, friendly answer..."}
+    {"role": "assistant", "content": "Grounded answer..."}
   ],
-  "source": "feedback|synthetic|multiwoz-mapped",
-  "intent": "reservation_balance"
+  "source": "feedback|brain|history|curated",
+  "intent": "report_pl"
 }
 ```
 
-## Suggested sources
+## Build / refresh
 
-| Dataset | Use | Notes |
-|---|---|---|
-| SPMS feedback (`data/assistant_nlu/feedback.jsonl`) | Highest value | Approved thumbs-up/expected-answer examples. Sanitize PII. |
-| SPMS intent seed (`data/assistant_nlu/intents_seed.jsonl`) | Intent NLU | Already used by `scripts/train_assistant_intent.py`. |
-| Bitext Hospitality | Support paraphrases | Map to SPMS intents/knowledge; review before use. |
-| MultiWOZ (hotel) | Booking/dialogue paraphrases | Map to SPMS schema; extract relevant turns. |
-| SGD (hotel/travel) | Tool-call/dialogue patterns | Map to SPMS tools; useful for synthetic tool-use examples. |
+```bash
+# Regenerate maximal curated datasets
+python scripts/build_max_assistant_datasets.py
 
-## Workflow
+# Prepare processed training splits
+python scripts/prepare_assistant_dataset.py
 
-1. Put raw datasets in `data/datasets/raw/`.
-2. Register them in `manifest.json`.
-3. Build processed datasets:
-   ```bash
-   python scripts/prepare_assistant_dataset.py
-   ```
-4. Train intent classifier (existing):
-   ```bash
-   python scripts/train_assistant_intent.py --backend sklearn
-   ```
-5. Fine-tune SmolLM2-360M (separate training env with GPU recommended):
-   ```bash
-   python scripts/train_assistant_llm.py --model HuggingFaceTB/SmolLM2-360M-Instruct --dataset data/datasets/processed/grounded_chat.jsonl --output models/assistant-smollm2-360m
-   ```
-6. Export GGUF and place it at the configured `assistant_local_model_path`.
+# Train intent routers
+python scripts/train_assistant_intent.py --backend sklearn
+python scripts/train_assistant_intent.py --backend setfit --base-model sentence-transformers/paraphrase-MiniLM-L3-v2
+
+# Fine-tune local LLM (GPU recommended)
+python scripts/train_assistant_llm.py --dataset data/datasets/processed/train.jsonl --eval-dataset data/datasets/processed/eval.jsonl
+```
+
+## Smarter over time
+
+1. Collect assistant feedback (thumbs up/down, corrections, expected answers).
+2. Sanitize PII/secrets.
+3. Run `python scripts/build_max_assistant_datasets.py` to refresh curated/processed datasets.
+4. Retrain intent router / fine-tune local model.
+5. Evaluate on held-out eval split and real SPMS regression prompts.
+6. Version datasets in manifest and keep snapshots for rollback.
+
+## Quality gates
+
+- No invented facts/IDs/dates/amounts/actions.
+- All examples mapped to real SPMS intents/capabilities or explicitly marked clarification/unsafe.
+- Deduped, schema-valid, reproducible generation.
+- PII/secrets review before any external dataset sharing.

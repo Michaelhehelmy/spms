@@ -809,6 +809,26 @@ def _training_context(request: Request) -> dict[str, Any]:
     sources = assistant_training.list_sources()
     runs = assistant_training.training_runs()[-10:]
     runs.reverse()
+    training_share = {}
+    try:
+        from app_core.assistant import training_data_share as tds
+        pkg_size = tds.package_size_bytes()
+        min_bytes = int(services.get_setting("assistant_training_share_min_bytes", "1048576") or "1048576")
+        enabled = services.get_setting("assistant_training_share_enabled", "false") == "true"
+        ok, reason = tds.should_upload_now()
+        training_share = {
+            "enabled": enabled,
+            "package_size_bytes": pkg_size,
+            "package_size_mb": round(pkg_size / (1024 * 1024), 2),
+            "min_bytes": min_bytes,
+            "ready": pkg_size >= min_bytes,
+            "should_upload_now": ok,
+            "reason": reason,
+            "last_upload_at": services.get_setting("assistant_training_share_last_upload_at", ""),
+            "last_status": services.get_setting("assistant_training_share_last_status", ""),
+        }
+    except Exception:
+        training_share = {}
     return {
         "training_sources": sources,
         "training_runs": runs,
@@ -818,6 +838,7 @@ def _training_context(request: Request) -> dict[str, Any]:
             {"id": "llm_lora", "label": "SmolLM2-360M LoRA fine-tune (GPU recommended, prepares dataset)"},
         ],
         "default_model": "SmolLM2-360M-Instruct",
+        "training_share": training_share,
     }
 
 

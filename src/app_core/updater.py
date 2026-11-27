@@ -21,7 +21,7 @@ from typing import Any
 
 from . import paths
 
-APP_VERSION = "1.3.6"
+APP_VERSION = "2.3.6"
 REPO_SLUG = "Michaelhehelmy/spms"
 REPO_URL = f"https://github.com/{REPO_SLUG}"
 API_COMMITS_URL = f"https://api.github.com/repos/{REPO_SLUG}/commits"

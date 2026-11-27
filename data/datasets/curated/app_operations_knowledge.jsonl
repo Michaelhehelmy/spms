@@ -1,0 +1,13 @@
+{"type": "app_knowledge", "module": "Reservations", "content": "Create, quote, check-in/out, payments, invoices, extra services, discounts, modify, group bookings, activity bookings.", "source": "curated_spms_app"}
+{"type": "app_knowledge", "module": "Guests", "content": "Guest directory, search, 360 portfolio, profile edit, stay/payment/POS/invoice history.", "source": "curated_spms_app"}
+{"type": "app_knowledge", "module": "POS", "content": "Sell walk-ins, charge reservations, inventory items, batches/traceability, meals/recipes, activities, walk-in history.", "source": "curated_spms_app"}
+{"type": "app_knowledge", "module": "Housekeeping", "content": "Tasks, dirty/clean status, room blocks OOO/OOS, generate tasks, resolve blocks.", "source": "curated_spms_app"}
+{"type": "app_knowledge", "module": "Accounting", "content": "Overview, expenses, payments/refunds, cash shifts, night audit, ledger, integrity checks.", "source": "curated_spms_app"}
+{"type": "app_knowledge", "module": "Reports", "content": "P&L, cash flow, VAT, payment methods, occupancy, daily ops, exports/downloads, comparison periods.", "source": "curated_spms_app"}
+{"type": "app_knowledge", "module": "Settings/Admin", "content": "General, seed/data, rooms/plans, rate plans/rules, users/RBAC, packages, vouchers, service catalog, approvals, health.", "source": "curated_spms_app"}
+{"type": "app_knowledge", "module": "Assistant", "content": "Grounded read-only answers from real SPMS data; feedback improves over time; no external AI calls.", "source": "curated_spms_app"}
+{"type": "ops_playbook", "name": "Daily opening", "content": "Review today ops: arrivals, departures, in-house, housekeeping readiness, cash shift, outstanding balances, alerts.", "source": "curated_ops_playbook"}
+{"type": "ops_playbook", "name": "Check-in", "content": "Confirm reservation, room readiness, guest identity/policy, collect payment/deposit as needed, check in.", "source": "curated_ops_playbook"}
+{"type": "ops_playbook", "name": "Checkout", "content": "Review folio, post missing charges, collect balance, generate invoice/receipt, checkout, set room dirty/housekeeping.", "source": "curated_ops_playbook"}
+{"type": "ops_playbook", "name": "Night audit", "content": "Verify payments/refunds/shifts, review exceptions, run night audit, store snapshot, follow up discrepancies.", "source": "curated_ops_playbook"}
+{"type": "ops_playbook", "name": "Weekly business review", "content": "Compare P&L, cash flow, occupancy, ADR/RevPAR, sales mix, expenses, receivables, inventory alerts vs prior week.", "source": "curated_ops_playbook"}

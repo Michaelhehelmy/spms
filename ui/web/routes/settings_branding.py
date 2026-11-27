@@ -16,7 +16,15 @@ router = APIRouter()
 def unlock_page(request: Request, next: str = "/"):
     from ui.web.route_utils import safe_local_path
 
-    return render(request, "unlock.html", {"title": "Unlock", "next": safe_local_path(next, "/")})
+    return render(
+        request,
+        "unlock.html",
+        {
+            "title": "Unlock",
+            "next": safe_local_path(next, "/"),
+            "password_set": services.has_super_password(),
+        },
+    )
 
 
 @router.post("/unlock")
@@ -31,10 +39,23 @@ async def unlock_post(request: Request):
     except Exception as e:
         logger.warning("web_auth_route_event event=unlock_rate_limited")
         return flash_redirect(request, "/unlock?next=" + quote(nxt, safe="/"), str(getattr(e, "detail", e)), "error")
+
+    if not services.has_super_password():
+        password = (form.get("password", "") or "")
+        confirm = (form.get("confirm_password", "") or "")
+        if password != confirm:
+            return flash_redirect(request, "/unlock?next=" + quote(nxt, safe="/"), "Passwords do not match", "error")
+        try:
+            services.set_super_password(password)
+        except Exception as e:
+            return flash_redirect(request, "/unlock?next=" + quote(nxt, safe="/"), str(e), "error")
+        if deps.unlock(request, password):
+            return flash_redirect(request, nxt, "Super password created. Unlocked", "success")
+        return flash_redirect(request, "/unlock?next=" + quote(nxt, safe="/"), "Password created, but unlock failed. Please try again.", "error")
+
     if deps.unlock(request, form.get("password", "")):
         return flash_redirect(request, nxt, "Unlocked", "success")
-    else:
-        return flash_redirect(request, "/unlock?next=" + quote(nxt, safe="/"), "Invalid super password", "error")
+    return flash_redirect(request, "/unlock?next=" + quote(nxt, safe="/"), "Invalid super password", "error")
 
 
 @router.get("/unlock/recovery")
@@ -121,6 +142,29 @@ def settings(request: Request, tab: str = "general"):
         req_host, req_port = "", 8000
     lan_urls = [f"http://{ip}:{req_port}" for ip in lan_ips]  # nosemgrep: python.django.security.injection.tainted-url-host.tainted-url-host - IPs from local interface detection, not user-controlled request host
     is_local_access = req_host in {"127.0.0.1", "localhost", "::1", ""}
+    training_share = {}
+    try:
+        from app_core.assistant import training_data_share as tds
+        pkg_size = tds.package_size_bytes()
+        enabled = services.get_setting("assistant_training_share_enabled", "false") == "true"
+        min_bytes = int(services.get_setting("assistant_training_share_min_bytes", "1048576") or "1048576")
+        ok, reason = tds.should_upload_now()
+        training_share = {
+            "enabled": enabled,
+            "package_size_bytes": pkg_size,
+            "package_size_mb": round(pkg_size / (1024 * 1024), 2),
+            "min_bytes": min_bytes,
+            "min_mb": round(min_bytes / (1024 * 1024), 2),
+            "ready": pkg_size >= min_bytes,
+            "should_upload_now": ok,
+            "reason": reason,
+            "last_upload_at": services.get_setting("assistant_training_share_last_upload_at", ""),
+            "last_status": services.get_setting("assistant_training_share_last_status", ""),
+            "upload_url": services.get_setting("assistant_training_share_upload_url", ""),
+            "repo": services.get_setting("assistant_training_share_repo", ""),
+        }
+    except Exception:
+        logger.debug("web.settings: failed to compute training share status", exc_info=True)
     return render(
         request,
         "settings/index.html",
@@ -138,6 +182,7 @@ def settings(request: Request, tab: str = "general"):
             "lan_ips": lan_ips,
             "current_access_host": req_host,
             "is_local_access": is_local_access,
+            "training_share": training_share,
             "brand": {
                 "name": services.get_app_display_name(),
                 "tagline": services.get_app_tagline(),
@@ -228,6 +273,23 @@ async def backup(request: Request):
     except Exception as e:
         deps.add_flash(request, str(e), "error")
         logger.warning("web_backup_event event=backup_failure error=%s", str(e)[:240])
+    r = deps.redirect("/settings?tab=general")
+    deps.save_session(r, deps.get_session(request))
+    return r
+
+
+@router.post("/settings/training-share/upload-now")
+async def training_share_upload_now(request: Request):
+    form = await deps.require_unlocked_form(request, permission="settings.manage")
+    try:
+        from app_core.assistant import training_data_share as tds
+        res = tds.upload_training_package()
+        if res.get("ok"):
+            deps.add_flash(request, f"Training data uploaded ({res.get('size_bytes',0)} bytes).", "success")
+        else:
+            deps.add_flash(request, f"Training data upload failed: {res.get('error') or res.get('response')}", "error")
+    except Exception as e:
+        deps.add_flash(request, str(e), "error")
     r = deps.redirect("/settings?tab=general")
     deps.save_session(r, deps.get_session(request))
     return r

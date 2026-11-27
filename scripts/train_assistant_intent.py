@@ -15,6 +15,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SEED = ROOT / "data" / "assistant_nlu" / "intents_seed.jsonl"
 FEEDBACK = ROOT / "data" / "assistant_nlu" / "feedback.jsonl"
+PERSONA = ROOT / "co-camp" / "co_camp" / "data" / "persona_examples.jsonl"
+CURATED_INTENT = ROOT / "data" / "datasets" / "processed" / "intent_examples.jsonl"
+CURATED_HISTORY = ROOT / "data" / "datasets" / "curated" / "business_history.jsonl"
+CURATED_OPS = ROOT / "data" / "datasets" / "curated" / "app_operations_knowledge.jsonl"
 SK_OUT = ROOT / "models" / "assistant_intent_sklearn.joblib"
 SF_OUT = ROOT / "models" / "assistant_intent_setfit"
 
@@ -45,6 +49,21 @@ def load_dataset():
         msg = r.get("message")
         if msg and intent:
             rows.append({"text": msg, "label": intent})
+    for r in load_jsonl(PERSONA):
+        if r.get("text") and r.get("label"):
+            rows.append({"text": r["text"], "label": r["label"]})
+    for r in load_jsonl(CURATED_INTENT):
+        if r.get("text") and r.get("label"):
+            rows.append({"text": r["text"], "label": r["label"]})
+    for r in load_jsonl(CURATED_HISTORY):
+        if r.get("type") == "history_qa" and r.get("question") and r.get("intent"):
+            rows.append({"text": r["question"], "label": r["intent"]})
+    for r in load_jsonl(CURATED_OPS):
+        t = r.get("type")
+        if t == "app_knowledge" and r.get("module"):
+            rows.append({"text": f"How does {r['module']} work in SPMS?", "label": "capabilities_help"})
+        elif t == "ops_playbook" and r.get("name"):
+            rows.append({"text": f"What is the SOP for {r['name']}?", "label": "capabilities_help"})
     # dedupe
     seen = set()
     out = []

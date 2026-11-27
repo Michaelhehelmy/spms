@@ -1,20 +1,100 @@
 {
-  "version": 1,
-  "description": "Dataset registry for SPMS assistant training",
+  "version": 2,
+  "generated_at": "2026-11-27T11:33:28.067751+00:00",
+  "dataset_version": "2026.11.27",
+  "description": "Versioned SPMS/Co-Camp assistant dataset registry. Business/app/operations/history aware; grows via feedback.",
+  "principles": [
+    "Grounded only: no invented IDs/dates/amounts/actions.",
+    "Business/app/operations scope only; reject unsafe/out-of-scope.",
+    "History aware: include period snapshots, trends, comparisons.",
+    "Smarter over time: ingest feedback/corrections into curated and training datasets.",
+    "Reproducible: deterministic generation + versioned snapshots + eval splits."
+  ],
   "datasets": [
-    {
-      "id": "spms_feedback",
-      "path": "data/assistant_nlu/feedback.jsonl",
-      "type": "feedback",
-      "enabled": true,
-      "notes": "Approved/corrected user feedback; sanitize before training."
-    },
     {
       "id": "spms_intent_seed",
       "path": "data/assistant_nlu/intents_seed.jsonl",
       "type": "intent_seed",
       "enabled": true,
-      "notes": "Seed intent examples for NLU."
+      "rows": 9052,
+      "notes": "Expanded intent seed covering all SPMS intents."
+    },
+    {
+      "id": "spms_feedback",
+      "path": "data/assistant_nlu/feedback.jsonl",
+      "type": "feedback",
+      "enabled": true,
+      "rows": 18,
+      "notes": "Real + curated bootstrap feedback/corrections; sanitize before external sharing."
+    },
+    {
+      "id": "cocamp_persona",
+      "path": "co-camp/co_camp/data/persona_examples.jsonl",
+      "type": "persona_intent",
+      "enabled": true,
+      "rows": 754,
+      "notes": "Co-Camp persona, app how-to, business history, ops playbooks, safety boundaries."
+    },
+    {
+      "id": "curated_business_history",
+      "path": "data/datasets/curated/business_history.jsonl",
+      "type": "history_knowledge",
+      "enabled": true,
+      "rows": 18,
+      "notes": "Synthetic/anonymized business-history snapshots and grounded QA for trend awareness."
+    },
+    {
+      "id": "curated_ops_knowledge",
+      "path": "data/datasets/curated/app_operations_knowledge.jsonl",
+      "type": "app_ops_knowledge",
+      "enabled": true,
+      "rows": 13,
+      "notes": "SPMS app modules, SOPs, and operational playbooks."
+    },
+    {
+      "id": "curated_feedback_bootstrap",
+      "path": "data/datasets/curated/feedback_bootstrap.jsonl",
+      "type": "feedback_curated",
+      "enabled": true,
+      "notes": "Curated feedback examples for bootstrap training; merged into assistant_nlu/feedback.jsonl with provenance."
+    },
+    {
+      "id": "processed_intent_examples",
+      "path": "data/datasets/processed/intent_examples.jsonl",
+      "type": "processed_intent",
+      "enabled": true,
+      "notes": "Merged/deduped intent training examples."
+    },
+    {
+      "id": "processed_grounded_chat",
+      "path": "data/datasets/processed/grounded_chat.jsonl",
+      "type": "processed_chat",
+      "enabled": true,
+      "notes": "Grounded chat SFT examples (system/user/assistant)."
+    },
+    {
+      "id": "processed_train",
+      "path": "data/datasets/processed/train.jsonl",
+      "type": "processed_train",
+      "enabled": true,
+      "notes": "Train split for grounded chat fine-tuning."
+    },
+    {
+      "id": "processed_eval",
+      "path": "data/datasets/processed/eval.jsonl",
+      "type": "processed_eval",
+      "enabled": true,
+      "notes": "Eval split for grounded chat fine-tuning."
     }
-  ]
+  ],
+  "splits": {
+    "train_ratio": 0.9,
+    "eval_ratio": 0.1,
+    "seed": 42
+  },
+  "quality": {
+    "dedupe": true,
+    "schema_validated": true,
+    "pii_review": "required_before_external_share"
+  }
 }

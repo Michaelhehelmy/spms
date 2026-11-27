@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "message",
+    "predicted_intent"
+  ],
+  "properties": {
+    "id": {},
+    "created_at": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "predicted_intent": {
+      "type": "string"
+    },
+    "corrected_intent": {
+      "type": "string"
+    },
+    "confidence": {},
+    "slots": {
+      "type": "object"
+    },
+    "corrected_slots": {
+      "type": "object"
+    },
+    "tools_used": {
+      "type": "array"
+    },
+    "answer_preview": {
+      "type": "string"
+    },
+    "expected_answer": {
+      "type": "string"
+    },
+    "rating": {
+      "type": "integer"
+    },
+    "user_note": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

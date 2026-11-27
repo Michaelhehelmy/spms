@@ -93,6 +93,12 @@ def create_app(*, init_db: bool = True, run_startup: bool = True) -> FastAPI:
             model_pull.start_pull_on_startup()
         except Exception:
             logger.debug("assistant model pull startup failed", exc_info=True)
+        # Best-effort: opt-in monthly sanitized training-data share (non-blocking).
+        try:
+            from app_core.assistant import training_data_share
+            training_data_share.start_monthly_upload_on_startup()
+        except Exception:
+            logger.debug("assistant training share startup failed", exc_info=True)
 
     app = FastAPI(title=f"{services.get_app_display_name()} Web UI")
     static_dir = Path(__file__).resolve().parent / "static"

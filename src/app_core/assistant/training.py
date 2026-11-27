@@ -46,6 +46,38 @@ DEFAULT_SOURCES = [
         "description": "App knowledge entries from agent_brain.json.",
         "default": True,
     },
+    {
+        "id": "cocamp_persona",
+        "label": "Co-Camp persona & app/business examples",
+        "path": "co-camp/co_camp/data/persona_examples.jsonl",
+        "kind": "intent+grounded",
+        "description": "Co-Camp persona, SPMS app how-to, business/operations/history awareness examples.",
+        "default": True,
+    },
+    {
+        "id": "curated_business_history",
+        "label": "Business history snapshots (curated)",
+        "path": "data/datasets/curated/business_history.jsonl",
+        "kind": "grounded",
+        "description": "Synthetic/anonymized business history snapshots and trend QA; augment with sanitized real exports.",
+        "default": True,
+    },
+    {
+        "id": "curated_ops_knowledge",
+        "label": "App/operations knowledge (curated)",
+        "path": "data/datasets/curated/app_operations_knowledge.jsonl",
+        "kind": "grounded",
+        "description": "SPMS module knowledge and operational SOP playbooks.",
+        "default": True,
+    },
+    {
+        "id": "curated_feedback_bootstrap",
+        "label": "Curated feedback bootstrap",
+        "path": "data/datasets/curated/feedback_bootstrap.jsonl",
+        "kind": "intent+grounded",
+        "description": "Curated bootstrap feedback/corrections with provenance for initial training quality.",
+        "default": False,
+    },
 ]
 
 

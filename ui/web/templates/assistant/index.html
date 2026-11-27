@@ -82,6 +82,11 @@
 <div class="panel" style="margin-top:14px" id="assistant-training">
   <div class="panel-header"><h3 style="margin:0">Training / Datasets</h3><span class="muted" style="font-size:12px">Choose data, estimate time, avoid duplicate training</span></div>
   <p class="muted" style="font-size:13px">Select data sources to train/improve the assistant. Same model+backend+data selection is fingerprinted to prevent training twice on identical data.</p>
+  {% if training_share %}
+  <div class="muted" style="font-size:12px;margin:6px 0 10px;padding:8px;border:1px solid var(--border,#ddd);border-radius:8px">
+    <strong>Opt-in data sharing:</strong> {% if training_share.enabled %}<span class="ok">enabled</span>{% else %}disabled (default){% endif %} · package {{ training_share.package_size_mb }} MB · gate {{ (training_share.min_bytes / 1048576)|round(2) }} MB · {% if training_share.ready %}ready{% else %}below gate{% endif %} · last upload {{ training_share.last_upload_at or 'never' }} {{ training_share.last_status or '' }}. Configure in <a href="/settings?tab=general">Settings</a>.
+  </div>
+  {% endif %}
 
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
     <div>

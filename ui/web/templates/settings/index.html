@@ -209,6 +209,19 @@
   {% endif %}
 </div>
 
+<div class="panel" style="margin-top:14px"><h3>Co-Camp training data sharing (opt-in)</h3>
+  <p class="muted">Improve Co-Camp over time by sharing <strong>sanitized training data only</strong> (intent examples, feedback corrections, persona/app/ops/history training data). <strong>No raw guest PII/secrets intended.</strong> Default is <strong>OFF</strong>. When you explicitly opt in, the app can auto-upload monthly when online and package size is above the 1 MB gate.</p>
+  <table>
+    <tr><th>Opt-in enabled</th><td>{% if training_share.enabled %}<span class="ok"><strong>Enabled</strong></span>{% else %}<span class="muted"><strong>Disabled (default)</strong></span>{% endif %}</td></tr>
+    <tr><th>Sanitized package size</th><td>{{ training_share.package_size_mb }} MB ({{ training_share.package_size_bytes }} bytes) · gate {{ training_share.min_mb }} MB · {% if training_share.ready %}<span class="ok">ready</span>{% else %}<span class="muted">below gate</span>{% endif %}</td></tr>
+    <tr><th>Upload destination</th><td><code>{{ training_share.upload_url or '—' }}</code> → repo <code>{{ training_share.repo or '—' }}</code></td></tr>
+    <tr><th>Last upload</th><td>{{ training_share.last_upload_at or '—' }} <span class="muted">{{ training_share.last_status or '' }}</span></td></tr>
+    <tr><th>Next auto-upload</th><td class="muted">{% if training_share.enabled %}{% if training_share.should_upload_now %}Eligible now (background check on startup/online).{% else %}{{ training_share.reason }}{% endif %}{% else %}Enable opt-in first.{% endif %}</td></tr>
+  </table>
+  <p class="muted" style="margin-top:8px">To enable/disable, set <code>assistant_training_share_enabled</code> in the settings catalog below (requires unlock + super password). Destination/repo/min-size are also configurable there. After opt-in, uploads happen automatically in background (monthly, when online, when package &gt; 1MB).</p>
+  <form method="post" action="/settings/training-share/upload-now" style="margin-top:8px"><input type="hidden" name="csrf" value="{{ csrf_token }}"/><button type="submit" {% if not training_share.enabled or not training_share.ready %}disabled{% endif %}>Send training data now</button> <span class="muted">(requires opt-in enabled + package &gt; 1MB)</span></form>
+</div>
+
 <div class="panel" style="margin-top:14px"><h3>Settings catalog (unlock + password to save)</h3>
   <p class="muted">Edit values supported by <code>services.save_settings</code>. Sensitive save requires super password.</p>
   <form method="post" action="/settings/save"><input type="hidden" name="csrf" value="{{ csrf_token }}"/>

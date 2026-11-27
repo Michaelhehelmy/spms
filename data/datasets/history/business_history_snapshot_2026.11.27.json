@@ -1,0 +1,72 @@
+{
+  "version": "2026.11.27",
+  "generated_at": "2026-11-27T11:33:28.006380+00:00",
+  "type": "synthetic_anonymized_business_history",
+  "description": "Synthetic/anonymized monthly business snapshots for history-aware assistant training. Replace/augment with sanitized real exports over time.",
+  "snapshots": [
+    {
+      "type": "business_history_snapshot",
+      "period": "2026-08",
+      "occupancy_pct": 61.2,
+      "adr": 118.0,
+      "revpar": 72.2,
+      "revenue": 38200,
+      "expenses": 16400,
+      "net_profit": 21800,
+      "cash_in": 9200,
+      "cash_out": -6100,
+      "net_cash_flow": 3100,
+      "currency": "USD",
+      "source": "synthetic_business_history",
+      "anonymized": true
+    },
+    {
+      "type": "business_history_snapshot",
+      "period": "2026-09",
+      "occupancy_pct": 66.5,
+      "adr": 121.5,
+      "revpar": 80.8,
+      "revenue": 41500,
+      "expenses": 17100,
+      "net_profit": 24400,
+      "cash_in": 11100,
+      "cash_out": -6900,
+      "net_cash_flow": 4200,
+      "currency": "USD",
+      "source": "synthetic_business_history",
+      "anonymized": true
+    },
+    {
+      "type": "business_history_snapshot",
+      "period": "2026-10",
+      "occupancy_pct": 72.4,
+      "adr": 124.0,
+      "revpar": 89.8,
+      "revenue": 45200,
+      "expenses": 17900,
+      "net_profit": 27300,
+      "cash_in": 12800,
+      "cash_out": -7200,
+      "net_cash_flow": 5600,
+      "currency": "USD",
+      "source": "synthetic_business_history",
+      "anonymized": true
+    },
+    {
+      "type": "business_history_snapshot",
+      "period": "2026-11",
+      "occupancy_pct": 69.8,
+      "adr": 123.0,
+      "revpar": 85.9,
+      "revenue": 43800,
+      "expenses": 18250,
+      "net_profit": 25550,
+      "cash_in": 11900,
+      "cash_out": -7600,
+      "net_cash_flow": 4300,
+      "currency": "USD",
+      "source": "synthetic_business_history",
+      "anonymized": true
+    }
+  ]
+}
