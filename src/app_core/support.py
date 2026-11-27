@@ -401,10 +401,10 @@ logger = logging.getLogger(__name__)
 def record_support_report(report: dict[str, Any]) -> Path:
     """Store a sanitized support report locally for traceability."""
     SUPPORT_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     rid = str(report.get("id") or report.get("generated_at_client") or ts).replace(":", "-").replace(".", "-")
     safe = re.sub(r"[^A-Za-z0-9._-]+", "-", rid).strip("-")[:80] or ts
-    path = SUPPORT_REPORTS_DIR / f"report-{safe}.json"
+    path = SUPPORT_REPORTS_DIR / f"report-{safe}-{os.urandom(3).hex()}.json"
     payload = sanitize_for_report(report)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return path

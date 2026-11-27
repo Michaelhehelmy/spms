@@ -259,3 +259,26 @@ def test_rate_plans_and_health(client, monkeypatch):
     )
     r = client.get("/settings/health")
     assert r.status_code == 200
+
+
+def test_data_contribution_dismiss_and_bundle_select(client, monkeypatch):
+    import ui.web.routes.settings_branding as sbr
+
+    token = set_session(client, unlocked=False)
+    r = client.post("/settings/data-contribution/dismiss", data={"csrf": token, "next": "/settings"}, follow_redirects=False)
+    assert r.status_code in (302, 303)
+
+    token = set_session(client, unlocked=True)
+    monkeypatch.setattr(sbr.services, "set_setting", lambda k, v: None)
+    # mock bundles
+    class B:
+        name = "Co-Camp"
+    import app_core.assistant.bundles as bundles
+    import app_core.assistant.brain as brain
+    import app_core.assistant.feedback as feedback
+    monkeypatch.setattr(bundles, "discover_bundles", lambda: {"cocamp": B()})
+    monkeypatch.setattr(bundles, "get_active_bundle_id", lambda: "cocamp")
+    monkeypatch.setattr(brain, "load_brain", lambda force=True: None)
+    monkeypatch.setattr(feedback, "clear_ml_caches", lambda: None)
+    r = client.post("/settings/assistant-bundle/select", data={"csrf": token, "bundle_id": "cocamp", "password": "testpass"}, follow_redirects=True)
+    assert r.status_code == 200

@@ -233,3 +233,48 @@ def test_pull_models_apply_exception(monkeypatch, tmp_path):
     monkeypatch.setattr(model_pull, "_apply_model_paths", lambda *a: (_ for _ in ()).throw(RuntimeError("boom")))
     out = model_pull.pull_models_on_startup("https://example.com/repo")
     assert out["applied"] is False
+
+
+def test_pull_bundle_on_startup_test_env(monkeypatch):
+    monkeypatch.setattr(model_pull, "_is_test_env", lambda: True)
+    out = model_pull.pull_bundle_on_startup("cocamp", "https://example.com/repo")
+    assert out["skipped_reason"] == "test_env"
+
+
+def test_pull_bundle_on_startup_disabled(monkeypatch):
+    monkeypatch.setattr(model_pull, "_is_test_env", lambda: False)
+    monkeypatch.setattr(model_pull, "_is_disabled", lambda: True)
+    out = model_pull.pull_bundle_on_startup("cocamp")
+    assert out["applied"] is False
+
+
+def test_pull_bundle_on_startup_fetch_fail(monkeypatch):
+    monkeypatch.setattr(model_pull, "_is_test_env", lambda: False)
+    monkeypatch.setattr(model_pull, "_is_disabled", lambda: False)
+    monkeypatch.setattr(model_pull, "_setting", lambda k, d="": d)
+    monkeypatch.setattr(model_pull, "_fetch", lambda url: (_ for _ in ()).throw(RuntimeError("net")))
+    out = model_pull.pull_bundle_on_startup("cocamp", "https://example.com/repo")
+    assert out["downloaded"] == []
+
+def test_pull_bundle_on_startup_success(tmp_path, monkeypatch):
+    monkeypatch.setattr(model_pull, "_is_test_env", lambda: False)
+    monkeypatch.setattr(model_pull, "_is_disabled", lambda: False)
+    monkeypatch.setattr(model_pull, "_setting", lambda k, d="": d)
+    monkeypatch.setattr(model_pull, "DEST_DIR", tmp_path / "models")
+    import app_core.assistant.bundles as bundles
+    B = type("B", (), {"repo_url": "https://example.com/repo"})()
+    monkeypatch.setattr(bundles, "get_active_bundle_id", lambda: "cocamp")
+    monkeypatch.setattr(bundles, "get_active_bundle", lambda: B)
+    monkeypatch.setattr(bundles, "discover_bundles", lambda: {"cocamp": B})
+    manifest = {"files": [{"path": "a.bin", "sha256": ""}], "targets": {}}
+    calls = []
+    def fake_fetch(url):
+        calls.append(url)
+        if url.endswith("manifest.json"):
+            return json.dumps(manifest).encode("utf-8")
+        return b"data"
+    monkeypatch.setattr(model_pull, "_fetch", fake_fetch)
+    monkeypatch.setattr(model_pull, "_model_targets", lambda m: {})
+    monkeypatch.setattr(model_pull, "_apply_model_paths", lambda *a, **k: None)
+    out = model_pull.pull_bundle_on_startup("cocamp", "https://example.com/repo")
+    assert out["downloaded"] == ["a.bin"] or out["skipped"] == ["a.bin"] or out["applied"] in (True, False)

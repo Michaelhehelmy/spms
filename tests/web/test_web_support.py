@@ -63,3 +63,41 @@ def test_rendering_to_template_data_branches(client):
     converted = _to_template_data(row)
     assert converted == {"a": 1, "c": "b"}
     conn.close()
+
+
+def test_support_report_send_record_and_upload(client, monkeypatch):
+    import app_core.updater as updater
+    monkeypatch.setattr(updater, "get_cached_update_notice", lambda *a, **k: None)
+
+    import ui.web.routes.support as support_route
+    monkeypatch.setattr(support_route, "record_support_report", lambda report: type("P", (), {"name": "report-test.json"})())
+    monkeypatch.setattr(support_route, "upload_support_report", lambda report, upload_url=None: {"ok": True, "status": 200, "data": {"ok": True}})
+
+    set_session(client, unlocked=False, csrf="tok")
+    r = client.post("/support/report/send", json={"report": {"report_kind": "in_app_issue_report"}, "share": True}, headers={"x-csrf-token": "tok"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["ok"] is True
+    assert data["recorded"] is True
+    assert data["uploaded"] is True
+
+    r2 = client.post("/support/report/send", json={"report": {"x": 1}, "share": False}, headers={"x-csrf-token": "tok"})
+    assert r2.status_code == 200
+    assert r2.json()["uploaded"] is False
+
+
+def test_support_report_send_invalid_json(client):
+    set_session(client, unlocked=False, csrf="tok")
+    r = client.post("/support/report/send", data="not json", headers={"content-type": "application/json", "x-csrf-token": "tok"})
+    assert r.status_code == 400
+
+
+def test_support_report_delete_clear(client, monkeypatch):
+    import ui.web.routes.support as support_route
+    monkeypatch.setattr(support_route, "delete_support_report", lambda name: name == "report-a.json")
+    monkeypatch.setattr(support_route, "clear_support_reports", lambda: 3)
+    set_session(client, unlocked=False, csrf="tok")
+    r = client.post("/support/report/delete", data={"csrf": "tok", "name": "report-a.json"}, headers={"x-csrf-token": "tok"}, follow_redirects=False)
+    assert r.status_code in (302, 303)
+    r2 = client.post("/support/report/clear", data={"csrf": "tok"}, headers={"x-csrf-token": "tok"}, follow_redirects=False)
+    assert r2.status_code in (302, 303)
