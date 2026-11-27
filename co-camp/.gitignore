@@ -1,0 +1,8 @@
+# Local venvs.
+.venv/
+.venv-build/
+__pycache__/
+*.pyc
+.setuptools-cmake-build/
+# Note: the bundled GGUF (model/) and the trained models (models/) are
+# committed to this repo on purpose.

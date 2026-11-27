@@ -29,7 +29,14 @@ ENV/
 Thumbs.db
 __pycache__/
 build/
-co-camp/
+
+# Co-camp package (tracked in SPMS as separate package; ignore large/local artifacts)
+co-camp/.git/
+co-camp/.venv/
+co-camp/checkpoints/
+co-camp/**/__pycache__/
+co-camp/model/*.gguf
+
 
 coverage.json
 coverage.xml

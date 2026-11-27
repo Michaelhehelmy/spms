@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spms-co-camp"
+version = "0.1.0"
+description = "Co-Camp — the Manager Assistant for SPMS, developed by Michael Helmy (bundled small model + fine-tuned intent router + GGUF)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+
+[project.optional-dependencies]
+# Local intent-router ML (small models).
+assistant-ml = ["scikit-learn>=1.3", "joblib>=1.3", "setfit>=1.0", "sentence-transformers>=2.2"]
+# Optional local 'talking' LLM runtime (GGUF via llama.cpp). Model files are bundled (not downloaded).
+assistant-llm = ["llama-cpp-python>=0.2"]
+
+[tool.setuptools]
+packages = ["co_camp"]

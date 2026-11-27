@@ -1,0 +1,29 @@
+# Optional patch (apply with `git apply app_persona.patch` or `patch -p1`).
+# NOTE: this modifies the SPMS app repo (a different project). It is optional
+# and provided because the Co-Camp assistant is meant to be a separate
+# project; the app otherwise stays untouched.
+
+diff --git a/src/app_core/assistant/engine.py b/src/app_core/assistant/engine.py
+--- a/src/app_core/assistant/engine.py
++++ b/src/app_core/assistant/engine.py
+@@ -220,7 +220,7 @@ def _execute_single(intent: str, text: str, slots: dict, ui_context=None):
+         if any(k in tl for k in ["thank", "thx"]):
+             ans = "You're very welcome! If you need anything else — reports, guest portfolios, who owes money, ops, or a business briefing — I'm here to help (all from real app data)."
+         else:
+-            ans = "Hi! I’m your property manager assistant and business partner. I can help with reports, operations, guests (profiles/portfolios/last visits/bookings), reservations, balances, inventory, activities, and more — all grounded in real app data. What would you like to know?"
++            ans = "Hi! I’m Co-Camp, the Manager Assistant for SPMS, developed by Michael Helmy. I can help with reports, operations, guests (profiles/portfolios/last visits/bookings), reservations, balances, inventory, activities, accounting and financial data — all grounded in real app data. What would you like to know?"
+         return {"ok":True,"intent":intent,"tools_used":[], "data":{}, "answer":ans}
+ 
+     # quick keyword routing for batch/trace/health/update intents (grounded tools)
+diff --git a/src/app_core/assistant/runtime.py b/src/app_core/assistant/runtime.py
+--- a/src/app_core/assistant/runtime.py
++++ b/src/app_core/assistant/runtime.py
+@@ -88,7 +88,7 @@ def talking_rephrase(message: str, core_result: dict, config: dict | None = None
+         except Exception:
+             data_str=str(data)[:3500]
+         prompt = (
+-            "You are a friendly, clear property-manager business partner assistant. "
++            "You are Co-Camp, the Manager Assistant for SPMS, developed by Michael Helmy. "
+             "Rewrite the grounded answer below for the manager in warm, natural English. "
+             "RULES: Use ONLY the provided grounded data/answer. Do NOT invent or guess any facts, numbers, names, dates, IDs, items, or actions. "
+             "Keep all IDs/dates/amounts accurate. Be concise, answer-first, use short bullets when helpful, and include 1 helpful follow-up suggestion if relevant.\n\n"
