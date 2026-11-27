@@ -5,6 +5,16 @@ See docs/DEMO_VIDEOS.md for the plan.
 """
 from __future__ import annotations
 
+import os
+import pytest
+
+pytest.importorskip("playwright")
+
+pytestmark = pytest.mark.skipif(
+    os.environ.get("E2E_DEMO", "").lower() not in ("1", "true", "yes", "on", "demo"),
+    reason="Demo video recording; set E2E_DEMO=1",
+)
+
 from playwright.sync_api import expect
 
 from conftest import (

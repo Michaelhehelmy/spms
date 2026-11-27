@@ -10,6 +10,9 @@ import re
 from datetime import datetime, timedelta
 
 import pytest
+
+pytest.importorskip("playwright")
+
 from playwright.sync_api import expect
 
 from conftest import TEST_PASSWORD

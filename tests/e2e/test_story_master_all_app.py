@@ -14,6 +14,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
+
+pytest.importorskip("playwright")
+
 from playwright.sync_api import expect
 
 from conftest import DEMO_DIR, TEST_PASSWORD, record_video

@@ -103,7 +103,6 @@ def split(rows, test_ratio=0.2):
 def train_sklearn(rows):
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.linear_model import LogisticRegression
-    from sklearn.pipeline import Pipeline
     from sklearn.metrics import classification_report, accuracy_score
     import joblib
     train, test = split(rows)
