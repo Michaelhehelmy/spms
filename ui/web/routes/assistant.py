@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 import json
+import os
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -180,6 +181,25 @@ def _assistant_allowed(request: Request) -> bool:
     return (not req) or deps.is_unlocked(request)
 
 
+def _show_assistant_debug() -> bool:
+    return os.environ.get("SPMS_ASSISTANT_DEBUG", "").lower() in ("1", "true", "yes") or os.environ.get(
+        "ASSISTANT_DEBUG_META", ""
+    ).lower() in ("1", "true", "yes")
+
+
+def _messages_ctx(request: Request, **extra: Any) -> dict[str, Any]:
+    ctx = {
+        "request": request,
+        "history": _history(request)[-20:],
+        "pending_action": get_pending_action(request),
+        "csrf_token": deps.csrf_token(request),
+        "intents": assistant.INTENT_LABELS,
+        "show_assistant_debug": _show_assistant_debug(),
+    }
+    ctx.update(extra)
+    return ctx
+
+
 def _history(request: Request):
     sess = deps.get_session(request)
     hist = sess.get("assistant_history")
@@ -198,6 +218,7 @@ def assistant_page(request: Request):
         "assistant_locked": not _assistant_allowed(request),
         "llm": assistant.get_llm_config(),
         "intents": assistant.INTENT_LABELS,
+        "show_assistant_debug": _show_assistant_debug(),
         **_training_context(request),
     }
     return render(request, "assistant/index.html", ctx)
@@ -444,6 +465,7 @@ async def assistant_ask(request: Request):
         "pending_action": get_pending_action(request),
         "csrf_token": deps.csrf_token(request),
         "intents": assistant.INTENT_LABELS,
+        "show_assistant_debug": _show_assistant_debug(),
         "animate_index": animate_index,
     }
     return htmx_partial_or_redirect(
@@ -511,6 +533,7 @@ async def assistant_feedback(request: Request):
         "history": _history(request)[-20:],
         "csrf_token": deps.csrf_token(request),
         "intents": assistant.INTENT_LABELS,
+        "show_assistant_debug": _show_assistant_debug(),
     }
     return htmx_partial_or_redirect(
         request, partial_template="assistant/_messages.html", partial_context=ctx, redirect_url="/assistant"
@@ -550,6 +573,7 @@ async def assistant_action_confirm(request: Request):
             "pending_action": None,
             "csrf_token": deps.csrf_token(request),
             "intents": assistant.INTENT_LABELS,
+        "show_assistant_debug": _show_assistant_debug(),
         }
         return htmx_partial_or_redirect(
             request, partial_template="assistant/_messages.html", partial_context=ctx, redirect_url="/assistant"
@@ -571,6 +595,7 @@ async def assistant_action_confirm(request: Request):
             "pending_action": pending,
             "csrf_token": deps.csrf_token(request),
             "intents": assistant.INTENT_LABELS,
+        "show_assistant_debug": _show_assistant_debug(),
         }
         return htmx_partial_or_redirect(
             request, partial_template="assistant/_messages.html", partial_context=ctx, redirect_url="/assistant"
@@ -661,6 +686,7 @@ async def assistant_action_confirm(request: Request):
         "pending_action": pending_after,
         "csrf_token": deps.csrf_token(request),
         "intents": assistant.INTENT_LABELS,
+        "show_assistant_debug": _show_assistant_debug(),
         "animate_index": animate_index,
     }
     if ok:
@@ -710,6 +736,7 @@ async def assistant_action_cancel(request: Request):
             "pending_action": pending,
             "csrf_token": deps.csrf_token(request),
             "intents": assistant.INTENT_LABELS,
+        "show_assistant_debug": _show_assistant_debug(),
         }
         return htmx_partial_or_redirect(
             request, partial_template="assistant/_messages.html", partial_context=ctx, redirect_url="/assistant"
@@ -750,6 +777,7 @@ async def assistant_action_cancel(request: Request):
         "pending_action": None,
         "csrf_token": deps.csrf_token(request),
         "intents": assistant.INTENT_LABELS,
+        "show_assistant_debug": _show_assistant_debug(),
         "animate_index": animate_index,
     }
     return htmx_partial_or_redirect(
@@ -768,6 +796,7 @@ async def assistant_clear(request: Request):
         "pending_action": None,
         "csrf_token": deps.csrf_token(request),
         "intents": assistant.INTENT_LABELS,
+        "show_assistant_debug": _show_assistant_debug(),
     }
     return htmx_partial_or_redirect(
         request, partial_template="assistant/_messages.html", partial_context=ctx, redirect_url="/assistant"

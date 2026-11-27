@@ -15,7 +15,7 @@
     {% set should_animate = (_ai is not none and idx == _ai) %}
     <div class="msg-row assistant">
       <div class="bubble">
-        <div class="msg-head"><span class="role-assistant">Assistant</span>{% if m.meta %}<span class="muted" style="font-weight:500">· {{ m.meta }}</span>{% endif %}</div>
+        <div class="msg-head"><span class="role-assistant">Assistant</span>{% if show_assistant_debug and m.meta %}<span class="muted" style="font-weight:500">· {{ m.meta }}</span>{% endif %}</div>
         <div class="msg-body assistant-content"{% if should_animate %} data-animate="1" data-fulltext="{{ m.content|e }}"{% endif %}>{% if not should_animate %}{{ m.content }}{% endif %}</div>
         <div class="feedback-bar muted">
           Was this helpful?
