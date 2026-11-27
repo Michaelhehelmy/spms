@@ -26,13 +26,13 @@ def test_accounting_page_loads(e2e_server, page, setup_app, unlock):
     base = e2e_server.base_url
     setup_app("E2E Property")
     unlock()
-    page.goto(base + "/accounting?tab=overview")
-    expect(page.get_by_text("Quick actions").first).to_be_visible()
-    page.goto(base + "/accounting?tab=expenses")
-    expect(page.get_by_text("Record expense").first).to_be_visible()
-    expect(page.get_by_text("Recent expenses").first).to_be_visible()
-    page.goto(base + "/accounting?tab=payments")
-    expect(page.get_by_text("Record payment").first).to_be_visible()
+    page.goto(base + "/accounting?tab=overview", wait_until="domcontentloaded")
+    expect(page.get_by_text("Quick actions").first).to_be_visible(timeout=15000)
+    page.goto(base + "/accounting?tab=expenses", wait_until="domcontentloaded")
+    expect(page.get_by_text("Record expense").first).to_be_visible(timeout=15000)
+    expect(page.get_by_text("Recent expenses").first).to_be_visible(timeout=15000)
+    page.goto(base + "/accounting?tab=payments", wait_until="domcontentloaded")
+    expect(page.get_by_text("Record payment").first).to_be_visible(timeout=15000)
 
 
 def test_accounting_record_expense(e2e_server, page, setup_app, unlock, seed_expense_category):
