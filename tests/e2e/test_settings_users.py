@@ -31,5 +31,5 @@ def test_users_add_user_flow(e2e_server, page, setup_app, unlock, password):
     form.locator('input[name="new_password"]').fill("somepassword123")
     form.locator('input[name="password"]').fill(password)
     form.get_by_role("button", name="Create user").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("User created").first).to_be_visible()

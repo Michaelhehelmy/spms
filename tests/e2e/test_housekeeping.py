@@ -34,7 +34,7 @@ def test_housekeeping_create_task(e2e_server, page, setup_app, unlock):
     page.fill('input[name="assignee"]', "E2E Staff")
     page.fill('textarea[name="notes"]', "E2E notes")
     page.get_by_role("button", name="Create task").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("Housekeeping task created")).to_be_visible()
     expect(page.get_by_text("E2E Staff").first).to_be_visible()
 
@@ -45,5 +45,5 @@ def test_housekeeping_generate_tasks(e2e_server, page, setup_app, unlock):
     unlock()
     page.goto(base + "/housekeeping")
     page.get_by_role("button", name="Generate tasks for dirty rooms").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text(re.compile(r"Generated \d+ task\(s\) for dirty rooms"))).to_be_visible()

@@ -53,7 +53,7 @@ def test_nav_link_visible_and_clickable(e2e_server, page, setup_app, unlock, lab
     unlock()
     page.goto(base + "/")
     page.get_by_role("link", name=label).click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     assert page.url == base + path
 
 

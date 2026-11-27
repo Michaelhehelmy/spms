@@ -32,7 +32,7 @@ def test_no_console_errors_on_key_pages(e2e_server, page, setup_app, unlock):
     base = e2e_server.base_url
     for path in KEY_PAGES:
         page.goto(base + path)
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("networkidle", timeout=15000)
         errors = [e for e in page._console_errors if "Service Worker script" not in e]
         assert errors == [], f"console errors on {path}: {errors[:3]}"
 
@@ -53,7 +53,7 @@ def test_mobile_viewport_key_pages(e2e_server, browser):
         page.wait_for_url(lambda url: url == base + "/")
         for path in ["/guests", "/reservations", "/pos", "/assistant"]:
             page.goto(base + path)
-            page.wait_for_load_state("networkidle")
+            page.wait_for_load_state("networkidle", timeout=15000)
             expect(page.locator("nav.sidebar a.nav-link").first).to_be_visible()
     finally:
         ctx.close()

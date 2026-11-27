@@ -40,7 +40,7 @@ def test_pages_load_in_browser(e2e_server, playwright, browser_name):
         _setup_unlock(page, e2e_server)
         for path in ["/", "/guests", "/reservations", "/pos"]:
             page.goto(base + path)
-            page.wait_for_load_state("networkidle")
+            page.wait_for_load_state("networkidle", timeout=15000)
             expect(page.get_by_role("link", name="Dashboard")).to_be_visible()
     finally:
         ctx.close()

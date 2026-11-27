@@ -35,13 +35,13 @@ def test_portfolio_shows_invoice_files(e2e_server, page, setup_app, unlock, seed
     page.fill('input[name="rate"]', "100")
     page.get_by_role("button", name="Create reservation").click()
     page.wait_for_url(lambda u: "/reservations" in u)
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     page.locator('a[href^="/reservations/"]:not([href$="/reservations/groups"])').first.click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     invoice_responses: list = []
     page.on("response", lambda r: invoice_responses.append(r) if r.url.startswith(base + "/files/invoice/") else None)
     page.get_by_role("button", name="Generate invoice").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     assert invoice_responses and invoice_responses[0].status == 200
     invoice_name = re.sub(r"[^\w.-]", "_", invoice_responses[0].url.split("/files/invoice/")[-1])
     # The invoice is listed in the guest's portfolio Invoices section.

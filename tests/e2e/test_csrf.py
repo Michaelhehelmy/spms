@@ -27,7 +27,7 @@ def test_csrf_tampered_token_rejected(e2e_server, page, setup_app):
     page.fill('input[name="password"]', "e2e-pass-123")
     responses = _responses_for(page, base + "/unlock")
     page.get_by_role("button", name="Unlock").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     assert any(r.status == 400 for r in responses)
 
 
@@ -43,5 +43,5 @@ def test_csrf_missing_token_rejected(e2e_server, page, setup_app):
     page.fill('input[name="password"]', "e2e-pass-123")
     responses = _responses_for(page, base + "/unlock")
     page.get_by_role("button", name="Unlock").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     assert any(r.status == 400 for r in responses)

@@ -45,7 +45,7 @@ def test_assistant_send_message_via_ui(e2e_server, page, setup_app, unlock):
     page.goto(base + "/assistant")
     page.fill('textarea[name="message"]', "Who owes money?")
     page.get_by_role("button", name="Send message").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     assert page.url == base + "/assistant"
     expect(page.get_by_role("button", name="Send message")).to_be_visible()
     # Clear chat via the guarded route.

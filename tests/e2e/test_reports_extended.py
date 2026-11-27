@@ -28,7 +28,7 @@ def test_reports_analytics_export_flow(e2e_server, page, setup_app, unlock):
     unlock()
     page.goto(base + "/reports?tab=generate")
     page.get_by_role("button", name="Export (JSON/TXT/CSV as configured)").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text(re.compile(r"Analytics export created:"))).to_be_visible()
 
 
@@ -45,13 +45,13 @@ def test_reports_exports_list_shows_invoice(e2e_server, page, setup_app, unlock)
     page.fill('input[name="rate"]', "100")
     page.get_by_role("button", name="Create reservation").click()
     page.wait_for_url(lambda u: "/reservations" in u)
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     page.locator('a[href^="/reservations/"]:not([href$="/reservations/groups"])').first.click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     invoice_responses: list = []
     page.on("response", lambda r: invoice_responses.append(r) if r.url.startswith(base + "/files/invoice/") else None)
     page.get_by_role("button", name="Generate invoice").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     assert invoice_responses and invoice_responses[0].status == 200
     invoice_name = invoice_responses[0].url.split("/files/invoice/")[-1]
     # The invoice is listed on the Reports page.

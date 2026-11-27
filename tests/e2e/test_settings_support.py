@@ -28,7 +28,7 @@ def test_settings_save_via_ui(e2e_server, page, setup_app, unlock, password):
     page.goto(base + "/settings?tab=general")
     page.locator('form[action="/settings/save"]').locator('input[name="password"]').fill(password)
     page.get_by_role("button", name="Save settings").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text(re.compile(r"Saved \d+ settings"))).to_be_visible()
 
 

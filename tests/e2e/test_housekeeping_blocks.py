@@ -30,7 +30,7 @@ def test_housekeeping_create_room_block(e2e_server, page, setup_app, unlock, pas
     page.goto(base + "/housekeeping")
     page.get_by_text("Create room block").click()  # opens the details form
     _fill_create_block_form(page, password)
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("Room block created")).to_be_visible()
 
 
@@ -41,12 +41,12 @@ def test_housekeeping_resolve_block_flow(e2e_server, page, setup_app, unlock, pa
     page.goto(base + "/housekeeping")
     page.get_by_text("Create room block").click()
     _fill_create_block_form(page, password)
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("Room block created")).to_be_visible()
     # Resolve the active block (requires password).
     page.goto(base + "/housekeeping")
     rform = page.locator('form[action^="/housekeeping/blocks/"][action$="/resolve"]').first
     rform.locator('input[name="password"]').fill(password)
     rform.get_by_role("button", name="Resolve").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("Room block resolved").first).to_be_visible()

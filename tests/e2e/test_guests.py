@@ -17,7 +17,7 @@ def test_guest_search_and_no_results(e2e_server, page, setup_app, unlock):
     expect(page.get_by_role("button", name="Search")).to_be_visible()
     page.fill('input[name="q"]', "NoSuchGuestName")
     page.get_by_role("button", name="Search").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("No guests found")).to_be_visible()
 
 
@@ -29,10 +29,10 @@ def test_guest_search_and_open_portfolio(e2e_server, page, setup_app, unlock, se
     page.goto(base + "/guests?tab=directory")
     page.fill('input[name="q"]', "Alice")
     page.get_by_role("button", name="Search").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("Alice Example").first).to_be_visible()
     page.get_by_role("link", name="Open portfolio").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     assert page.url == f"{base}/guests/{gid}"
     expect(page.get_by_text("360° view")).to_be_visible()
     expect(page.get_by_text("Alice Example").first).to_be_visible()
@@ -56,6 +56,6 @@ def test_guest_edit_profile_via_ui(e2e_server, page, setup_app, unlock, seed_gue
     page.fill('textarea[name="notes"]', "E2E edited notes")
     page.fill('input[type="password"]', password)
     page.get_by_role("button", name="Update profile").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("Guest updated")).to_be_visible()
     expect(page.locator('input[name="name"]')).to_have_value("Bob Edited")

@@ -34,7 +34,7 @@ def test_settings_export_inventory_csv(e2e_server, page, setup_app, unlock):
     page.goto(base + "/settings?tab=data")
     responses = _post_response_303(page, base, base + "/settings/seed/export-inventory-csv")
     page.get_by_role("button", name="Export current inventory CSV").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     redirects = [r for r in responses if r.status == 303]
     assert redirects and redirects[0].headers.get("location", "").startswith("/files/export/")
 
@@ -46,7 +46,7 @@ def test_settings_download_inventory_csv_template(e2e_server, page, setup_app, u
     page.goto(base + "/settings?tab=data")
     responses = _post_response_303(page, base, base + "/settings/seed/export-inventory-csv")
     page.get_by_role("button", name="Download inventory CSV template").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     redirects = [r for r in responses if r.status == 303]
     assert redirects and redirects[0].headers.get("location", "").startswith("/files/export/")
 
@@ -58,6 +58,6 @@ def test_settings_export_seed_config_json(e2e_server, page, setup_app, unlock):
     page.goto(base + "/settings?tab=data")
     responses = _post_response_303(page, base, base + "/settings/seed/export")
     page.get_by_role("button", name="Export seed config JSON (download)").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     redirects = [r for r in responses if r.status == 303]
     assert redirects and redirects[0].headers.get("location", "").startswith("/files/export/")

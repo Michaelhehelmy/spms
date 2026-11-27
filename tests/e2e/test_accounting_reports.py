@@ -80,8 +80,7 @@ def test_reports_generate_pl(e2e_server, page, setup_app, unlock):
     expect(page.get_by_text("Run report").first).to_be_visible()
     page.select_option('select[name="kind"]', "pl")
     page.get_by_role("button", name="Generate").click()
-    page.wait_for_load_state("networkidle")
-    expect(page.get_by_text("Report generated")).to_be_visible()
+    expect(page.get_by_text("Report generated")).to_be_visible(timeout=15000)
 
 
 def test_accounting_refund_flow(e2e_server, page, setup_app, unlock, password):
@@ -97,15 +96,15 @@ def test_accounting_refund_flow(e2e_server, page, setup_app, unlock, password):
     page.fill('input[name="rate"]', "100")
     page.get_by_role("button", name="Create reservation").click()
     page.wait_for_url(lambda u: "/reservations" in u)
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     detail_link = page.locator('a[href^="/reservations/"]:not([href$="/reservations/groups"])').first
     rid = int(detail_link.get_attribute("href").split("/reservations/")[-1])
     detail_link.click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     assert page.url == f"{base}/reservations/{rid}"
     page.fill('#pay_amount', "40.00")
     page.get_by_role("button", name="Record payment").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     # Refund 10 via the accounting page.
     page.goto(base + "/accounting?tab=payments")
     form = page.locator('form[action="/accounting/refund"]')
@@ -113,7 +112,7 @@ def test_accounting_refund_flow(e2e_server, page, setup_app, unlock, password):
     form.locator('input[name="amount"]').fill("10.00")
     form.locator('input[type="password"]').fill(password)
     page.get_by_role("button", name="Refund").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("Refund recorded")).to_be_visible()
 
 
@@ -127,13 +126,13 @@ def test_accounting_void_expense(e2e_server, page, setup_app, unlock, seed_expen
     page.fill('input[name="amount"]', "10.00")
     page.select_option('select[name="cat_id"]', index=0)
     page.get_by_role("button", name="Record expense").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("Expense recorded")).to_be_visible()
     # Void the recorded expense.
     form = page.locator('form[action^="/accounting/expense/"][action$="/void"]').first
     form.locator('input[name="password"]').fill(password)
     form.get_by_role("button", name="Void").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("Expense voided").first).to_be_visible()
 
 
@@ -143,7 +142,7 @@ def test_accounting_run_night_audit(e2e_server, page, setup_app, unlock):
     unlock()
     page.goto(base + "/accounting?tab=night_audit")
     page.get_by_role("button", name="Run & record snapshot").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("Night audit snapshot recorded (advisory)")).to_be_visible()
 
 

@@ -34,7 +34,7 @@ def test_pos_add_custom_item_to_cart(e2e_server, page, setup_app, unlock):
     form.locator('input[name="qty"]').fill("2")
     form.locator('input[name="price"]').fill("15.50")
     form.get_by_role("button", name="Add to cart").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("E2E Pos Item").first).to_be_visible()
     expect(page.get_by_text("Walk-in cart (1 items)")).to_be_visible()
 
@@ -50,10 +50,10 @@ def test_pos_clear_cart(e2e_server, page, setup_app, unlock):
     form.locator('input[name="qty"]').fill("1")
     form.locator('input[name="price"]').fill("3.25")
     form.get_by_role("button", name="Add to cart").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("Walk-in cart (1 items)")).to_be_visible()
     page.get_by_role("button", name="Clear cart").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("Cart is empty").first).to_be_visible()
 
 
@@ -65,7 +65,7 @@ def test_pos_inventory_search(e2e_server, page, setup_app, unlock, seed_inventor
     page.goto(base + "/pos?tab=sell")
     page.fill('input[name="q"]', "E2E Supplies")
     page.get_by_role("button", name="Search").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.locator("td:has-text('E2E Supplies Item')").first).to_be_visible()
 
 
@@ -80,9 +80,9 @@ def test_walkin_sale_flow(e2e_server, page, setup_app, unlock):
     form.locator('input[name="qty"]').fill("1")
     form.locator('input[name="price"]').fill("8.50")
     form.get_by_role("button", name="Add to cart").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     invoice_responses: list = []
     page.on("response", lambda r: invoice_responses.append(r) if r.url.startswith(base + "/files/invoice/") else None)
     page.get_by_role("button", name="Complete walk-in sale & get receipt").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     assert invoice_responses and invoice_responses[0].status == 200

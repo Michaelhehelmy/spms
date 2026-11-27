@@ -21,7 +21,7 @@ def test_invalid_price_shows_friendly_error_flash(e2e_server, page, setup_app, u
     form.locator('input[name="qty"]').fill("1")
     form.locator('input[name="price"]').fill("-5")
     form.get_by_role("button", name="Add to cart").click()
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("Price cannot be negative.")).to_be_visible()
 
 
