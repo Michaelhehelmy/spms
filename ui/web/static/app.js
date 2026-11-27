@@ -50,6 +50,32 @@
     });
   }
 
+  function setupNavDrawer() {
+    const btn = document.getElementById('nav-toggle');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (!btn || !sidebar) return;
+    function closeNav() {
+      document.body.classList.remove('nav-open');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+    function openNav() {
+      document.body.classList.add('nav-open');
+      btn.setAttribute('aria-expanded', 'true');
+    }
+    btn.addEventListener('click', function () {
+      document.body.classList.contains('nav-open') ? closeNav() : openNav();
+    });
+    if (overlay) overlay.addEventListener('click', closeNav);
+    sidebar.querySelectorAll('a.nav-link').forEach(a => a.addEventListener('click', closeNav));
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeNav();
+    });
+    window.addEventListener('resize', function () {
+      if (window.innerWidth > 900) closeNav();
+    });
+  }
+
   function markLoading(on) {
     document.body.classList.toggle('htmx-loading', !!on);
     const bar = document.getElementById('top-progress');
@@ -58,6 +84,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     setActiveNav();
+    setupNavDrawer();
     runTypewriter(document);
   });
 
