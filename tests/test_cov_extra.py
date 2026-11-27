@@ -146,3 +146,180 @@ def test_training_share_startup_check_exception(monkeypatch):
     t = tds.start_monthly_upload_on_startup()
     assert t is not None
     t.join(timeout=2)
+
+
+# --- bundles discover exception ---
+def test_discover_bundles_handles_manifest_exception(tmp_path, monkeypatch):
+    pulled = tmp_path / "pulled" / "ok"
+    pulled.mkdir(parents=True)
+    (pulled / "manifest.json").write_text(json.dumps({"bundle_id": "x1", "name": "X1"}), encoding="utf-8")
+    monkeypatch.setattr(bundles, "PULLED_MODELS_DIR", tmp_path / "pulled")
+    monkeypatch.setattr(bundles, "BUNDLES_DIR", tmp_path / "none")
+    monkeypatch.setattr(bundles, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(bundles.services, "get_setting", lambda k, d="": d)
+
+    real_bfm = bundles.bundle_from_manifest
+    def boom(manifest, *a, **k):
+        if manifest.get("bundle_id") == "x1":
+            raise RuntimeError("boom")
+        return real_bfm(manifest, *a, **k)
+    monkeypatch.setattr(bundles, "bundle_from_manifest", boom)
+    found = bundles.discover_bundles()
+    assert bundles.DEFAULT_BUNDLE_ID in found
+    assert "x1" not in found
+
+
+# --- server startup exception branches ---
+def test_server_startup_handles_assistant_startup_errors(monkeypatch):
+    import app_core.services as services
+    from app_core.assistant import model_pull, training_data_share
+    monkeypatch.setattr(services, "init_db", lambda: None)
+    monkeypatch.setattr(services, "set_language", lambda *_: None)
+    monkeypatch.setattr(services, "get_setting", lambda k, d="": d)
+    monkeypatch.setattr(model_pull, "start_pull_on_startup", lambda: (_ for _ in ()).throw(RuntimeError("pull")))
+    monkeypatch.setattr(training_data_share, "start_monthly_upload_on_startup", lambda: (_ for _ in ()).throw(RuntimeError("share")))
+    app = create_app(init_db=False, run_startup=True)
+    assert app is not None
+
+
+# --- support coverage ---
+def test_support_list_delete_clear_cleanup_edge_cases(tmp_path, monkeypatch):
+    monkeypatch.setattr(support, "SUPPORT_REPORTS_DIR", tmp_path / "reports")
+    (tmp_path / "reports").mkdir(parents=True)
+    # list with stat failure
+    bad = tmp_path / "reports" / "report-bad.json"
+    bad.write_text("{}", encoding="utf-8")
+    real_stat = Path.stat
+    calls = {"n": 0}
+    def fake_stat(self, *a, **k):
+        if self.name == "report-bad.json":
+            calls["n"] += 1
+            if calls["n"] > 1:
+                raise OSError("stat fail")
+        return real_stat(self, *a, **k)
+    monkeypatch.setattr(Path, "stat", fake_stat)
+    items = support.list_support_reports()
+    assert all(i["name"] != "report-bad.json" for i in items)
+    monkeypatch.setattr(Path, "stat", real_stat)
+
+    # clear when dir missing
+    monkeypatch.setattr(support, "SUPPORT_REPORTS_DIR", tmp_path / "missing")
+    assert support.clear_support_reports() == 0
+
+    # clear with unlink error
+    monkeypatch.setattr(support, "SUPPORT_REPORTS_DIR", tmp_path / "reports2")
+    (tmp_path / "reports2").mkdir()
+    p = tmp_path / "reports2" / "report-x.json"
+    p.write_text("{}", encoding="utf-8")
+    real_unlink = Path.unlink
+    def fake_unlink(self, *a, **k):
+        if self.name == "report-x.json":
+            raise OSError("unlink fail")
+        return real_unlink(self, *a, **k)
+    monkeypatch.setattr(Path, "unlink", fake_unlink)
+    assert support.clear_support_reports() == 0
+    monkeypatch.setattr(Path, "unlink", real_unlink)
+
+    # cleanup with stat/unlink error
+    monkeypatch.setattr(support, "SUPPORT_REPORTS_DIR", tmp_path / "reports3")
+    (tmp_path / "reports3").mkdir()
+    p2 = tmp_path / "reports3" / "report-old.json"
+    p2.write_text("{}", encoding="utf-8")
+    import os as _os
+    _os.utime(p2, (1000, 1000))
+    monkeypatch.setattr(Path, "unlink", fake_unlink.__class__(lambda *a, **k: (_ for _ in ()).throw(OSError("x")))) if False else None
+    def bad_unlink(self, *a, **k):
+        if self.name == "report-old.json":
+            raise OSError("no")
+        return real_unlink(self, *a, **k)
+    monkeypatch.setattr(Path, "unlink", bad_unlink)
+    assert support.cleanup_support_reports(retention_days=1) == 0
+    monkeypatch.setattr(Path, "unlink", real_unlink)
+
+
+# --- runtime ---
+def test_runtime_get_status_fallbacks(monkeypatch, tmp_path):
+    from app_core.assistant import runtime
+
+    from app_core.assistant import bundles as _b
+    monkeypatch.setattr(runtime.services, "get_setting", lambda k, d="": (_ for _ in ()).throw(RuntimeError("db")))
+    monkeypatch.setattr(_b, "get_active_bundle", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    st = runtime.get_llm_config()
+    assert st["provider"] == "auto"
+
+    # bundle gguf fallback
+    class B:
+        id = "b"
+        name = "B"
+        gguf_path = str(tmp_path / "model.gguf")
+    (tmp_path / "model.gguf").write_text("x", encoding="utf-8")
+    monkeypatch.setattr(_b, "get_active_bundle", lambda: B())
+    monkeypatch.setattr(runtime.services, "get_setting", lambda k, d="": "")
+    monkeypatch.setattr(runtime, "PROJECT_ROOT", tmp_path)
+    st2 = runtime.get_llm_config()
+    assert st2["model_path"].endswith("model.gguf")
+
+    # candidate path fallback
+    class B2:
+        id = "b2"
+        name = "B2"
+        gguf_path = None
+    monkeypatch.setattr(_b, "get_active_bundle", lambda: B2())
+    monkeypatch.setattr(runtime.services, "get_setting", lambda k, d="": "")
+    cand_dir = tmp_path / "models"
+    cand_dir.mkdir()
+    (cand_dir / "assistant-smollm2-360m-q4_k_m.gguf").write_text("x", encoding="utf-8")
+    monkeypatch.setattr(runtime, "PROJECT_ROOT", tmp_path)
+    st3 = runtime.get_llm_config()
+    assert "assistant-smollm2-360m-q4_k_m.gguf" in st3["model_path"]
+
+
+# --- feedback/ml caches ---
+def test_feedback_ml_cache_helpers(monkeypatch):
+    from app_core.assistant import feedback, bundles as _bundles
+
+    monkeypatch.setattr(_bundles, "resolve_bundle_paths", lambda: (_ for _ in ()).throw(RuntimeError("x")))
+    assert feedback._bundle_model_paths() == {}
+
+    feedback.clear_ml_caches()
+    assert feedback._SKLEARN_CACHE is None
+    assert feedback._SETFIT_CACHE is None
+
+    # cache hit paths (only if libs installed)
+    import importlib.util
+    if importlib.util.find_spec("joblib"):
+        feedback._SKLEARN_CACHE = {"m": 1}
+        feedback._SKLEARN_CACHE_PATH = "/tmp/fake.joblib"
+        monkeypatch.setattr(feedback.services, "get_setting", lambda k, d="": "/tmp/fake.joblib")
+        monkeypatch.setattr(feedback, "DEFAULT_SKLEARN_MODEL_PATH", Path("/tmp/fake.joblib"))
+        got = feedback._load_sklearn_router()
+        assert got == {"m": 1}
+
+    if importlib.util.find_spec("setfit"):
+        feedback._SETFIT_CACHE = {"s": 1}
+        feedback._SETFIT_CACHE_PATH = "/tmp/fake_setfit"
+        monkeypatch.setattr(feedback.services, "get_setting", lambda k, d="": "/tmp/fake_setfit")
+        monkeypatch.setattr(feedback, "DEFAULT_SETFIT_MODEL_DIR", Path("/tmp/fake_setfit"))
+        got2 = feedback._load_setfit_router()
+        assert got2 == {"s": 1}
+
+    feedback.clear_ml_caches()
+
+
+def test_feedback_first_prediction_variants():
+    from app_core.assistant import feedback
+
+    assert feedback._first_prediction("") is None
+    assert feedback._first_prediction("room.create") == "room.create"
+    assert feedback._first_prediction([]) is None
+    assert feedback._first_prediction(["a", "b"]) == "a"
+    class T:
+        def tolist(self):
+            return ["x"]
+    assert feedback._first_prediction(T()) == "x"
+    class Bad:
+        def __len__(self):
+            return 1
+        def __getitem__(self, i):
+            raise RuntimeError("bad")
+    assert feedback._first_prediction(Bad()) is None
