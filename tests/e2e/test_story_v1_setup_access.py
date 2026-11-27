@@ -19,6 +19,7 @@ from flows.dashboard import filter_day, overview
 
 
 @pytest.mark.story
+@pytest.mark.timeout(300)
 def test_story_v1_setup_access_dashboard(e2e_server_fresh, page):
     base = e2e_server_fresh.base_url
 

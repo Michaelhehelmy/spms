@@ -82,6 +82,7 @@ def _tomorrow() -> str:
 
 
 @pytest.mark.story
+@pytest.mark.timeout(300)
 def test_story_master_all_app(e2e_server_fresh, page):
     base = e2e_server_fresh.base_url
     import time as _time

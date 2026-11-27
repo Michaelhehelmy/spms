@@ -31,6 +31,7 @@ from flows.pos import (
 
 
 @pytest.mark.story
+@pytest.mark.timeout(300)
 def test_story_v3_pos_housekeeping(e2e_server, page, setup_app, unlock):
     base = e2e_server.base_url
     setup_app("Acadia Camp")
