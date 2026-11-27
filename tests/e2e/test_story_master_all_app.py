@@ -82,7 +82,11 @@ def _tomorrow() -> str:
 
 
 @pytest.mark.story
-@pytest.mark.timeout(300)
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true" and not os.environ.get("E2E_DEMO"),
+    reason="Long master demo story; covered by v1-v3 e2e stories in CI.",
+)
+@pytest.mark.timeout(600)
 def test_story_master_all_app(e2e_server_fresh, page):
     base = e2e_server_fresh.base_url
     import time as _time
