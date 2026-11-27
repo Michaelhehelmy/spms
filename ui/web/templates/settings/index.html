@@ -209,7 +209,34 @@
   {% endif %}
 </div>
 
-<div class="panel" style="margin-top:14px"><h3>Co-Camp training data sharing (opt-in)</h3>
+<div class="panel" style="margin-top:14px"><h3>Assistant Brain Bundle</h3>
+  <p class="muted">Select which assistant brain/package SPMS uses. Bundles can provide persona, brain config, and optional local model artifacts.</p>
+  <table>
+    <tr><th>Active bundle</th><td><strong>{{ active_assistant_bundle }}</strong></td></tr>
+  </table>
+  {% if assistant_bundles %}
+  <div style="overflow:auto; margin-top:8px">
+    <table>
+      <tr><th>Bundle</th><th>Version</th><th>Source</th><th>Brain</th><th>Models</th><th>Status</th></tr>
+      {% for b in assistant_bundles %}
+      <tr>
+        <td><strong>{{ b.name }}</strong><div class="muted"><code>{{ b.id }}</code></div></td>
+        <td>{{ b.version }}</td>
+        <td>{{ b.source }}</td>
+        <td>{% if b.brain_path %}<span class="ok">ready</span>{% else %}<span class="muted">default/fallback</span>{% endif %}</td>
+        <td class="muted">GGUF: {{ 'yes' if b.resolved.gguf_path else 'no' }} · SetFit: {{ 'yes' if b.resolved.setfit_dir else 'no' }} · Sklearn: {{ 'yes' if b.resolved.sklearn_path else 'no' }}</td>
+        <td>{% if b.active %}<span class="ok"><strong>Active</strong></span>{% else %}
+          <form method="post" action="/settings/assistant-bundle/select" style="margin:0"><input type="hidden" name="csrf" value="{{ csrf_token }}"/><input type="hidden" name="bundle_id" value="{{ b.id }}"/><button type="submit">Activate</button></form>
+        {% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+  <p class="muted" style="margin-top:8px">You can also set <code>assistant_active_bundle</code> in the settings catalog. Model path overrides still take precedence when set.</p>
+</div>
+
+<div class="panel" style="margin-top:14px"><h3>Assistant training data sharing (opt-in)</h3>
   <p class="muted">Improve Co-Camp over time by sharing <strong>sanitized training data only</strong> (intent examples, feedback corrections, persona/app/ops/history training data). <strong>No raw guest PII/secrets intended.</strong> Default is <strong>OFF</strong>. When you explicitly opt in, the app can auto-upload monthly when online and package size is above the 1 MB gate.</p>
   <table>
     <tr><th>Opt-in enabled</th><td>{% if training_share.enabled %}<span class="ok"><strong>Enabled</strong></span>{% else %}<span class="muted"><strong>Disabled (default)</strong></span>{% endif %}</td></tr>

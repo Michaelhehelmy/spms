@@ -146,7 +146,7 @@ def settings(request: Request, tab: str = "general"):
     try:
         from app_core.assistant import training_data_share as tds
         pkg_size = tds.package_size_bytes()
-        enabled = services.get_setting("assistant_training_share_enabled", "false") == "true"
+        enabled = (services.get_setting("app_data_contribution_enabled", "false") == "true" or services.get_setting("assistant_training_share_enabled", "false") == "true")
         min_bytes = int(services.get_setting("assistant_training_share_min_bytes", "1048576") or "1048576")
         ok, reason = tds.should_upload_now()
         training_share = {
@@ -165,6 +165,15 @@ def settings(request: Request, tab: str = "general"):
         }
     except Exception:
         logger.debug("web.settings: failed to compute training share status", exc_info=True)
+    assistant_bundles = []
+    active_assistant_bundle = "spms_default"
+    try:
+        from app_core.assistant.bundles import list_bundles, get_active_bundle_id
+
+        assistant_bundles = list_bundles()
+        active_assistant_bundle = get_active_bundle_id()
+    except Exception:
+        logger.debug("web.settings: failed to load assistant bundles", exc_info=True)
     return render(
         request,
         "settings/index.html",
@@ -183,6 +192,8 @@ def settings(request: Request, tab: str = "general"):
             "current_access_host": req_host,
             "is_local_access": is_local_access,
             "training_share": training_share,
+            "assistant_bundles": assistant_bundles,
+            "active_assistant_bundle": active_assistant_bundle,
             "brand": {
                 "name": services.get_app_display_name(),
                 "tagline": services.get_app_tagline(),
@@ -275,6 +286,45 @@ async def backup(request: Request):
         logger.warning("web_backup_event event=backup_failure error=%s", str(e)[:240])
     r = deps.redirect("/settings?tab=general")
     deps.save_session(r, deps.get_session(request))
+    return r
+
+
+@router.post("/settings/assistant-bundle/select")
+async def assistant_bundle_select(request: Request):
+    form = await deps.require_unlocked_form(request, permission="settings.manage")
+    bundle_id = str(form.get("bundle_id") or "").strip()
+    try:
+        from app_core.assistant.bundles import discover_bundles, get_active_bundle_id
+        from app_core.assistant import brain, feedback
+
+        bundles = discover_bundles()
+        if bundle_id not in bundles:
+            raise ValueError(f"Unknown assistant bundle: {bundle_id}")
+        services.set_setting("assistant_active_bundle", bundle_id)
+        try:
+            brain.load_brain(force=True)
+        except Exception:
+            pass
+        try:
+            feedback.clear_ml_caches()
+        except Exception:
+            pass
+        deps.add_flash(request, f"Active assistant bundle set to {bundles[bundle_id].name}.", "success")
+    except Exception as e:
+        deps.add_flash(request, str(e), "error")
+    r = deps.redirect("/settings?tab=general")
+    deps.save_session(r, deps.get_session(request))
+    return r
+
+
+@router.post("/settings/data-contribution/dismiss")
+async def dismiss_data_contribution_notice(request: Request):
+    form = await deps.get_form(request)
+    nxt = str(form.get("next") or "/")
+    sess = deps.get_session(request)
+    sess["dismissed_data_contribution_notice"] = True
+    r = deps.redirect(nxt if nxt.startswith("/") else "/")
+    deps.save_session(r, sess)
     return r
 
 

@@ -120,6 +120,24 @@
       </script>
     {% endif %}
     {% for f in flashes %}<div class="flash {{ f.level }}">{{ f.message }}</div>{% endfor %}
+    {% if show_data_contribution_notice %}
+    <div class="panel" style="margin:10px 0; padding:10px 12px; border-left:4px solid #3b82f6;">
+      <div style="display:flex; gap:10px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap;">
+        <div style="flex:1; min-width:220px;">
+          <strong>Help improve SPMS (optional)</strong>
+          <div class="muted small">You can opt in to share sanitized, safe diagnostic/training data (no passwords, secrets, tokens, or guest/payment records) to help improve SPMS and Co-Camp. You control it and can disable anytime.</div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <a class="button-like" href="/settings?tab=general">Review settings</a>
+          <form method="post" action="/settings/data-contribution/dismiss" style="margin:0">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"/>
+            <input type="hidden" name="next" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}"/>
+            <button type="submit" class="ghost">Dismiss</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
     {% block content %}{% endblock %}
     </div>
   </main>

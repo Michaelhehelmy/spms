@@ -209,21 +209,44 @@ def exemplar_match(text: str, threshold: float = 0.70):
 
 # ── ML routers (optional, local/no external API) ─────────────────────────────
 _SKLEARN_CACHE = None
+_SKLEARN_CACHE_PATH = None
 _SETFIT_CACHE = None
+_SETFIT_CACHE_PATH = None
+
+
+def _bundle_model_paths() -> dict[str, str]:
+    try:
+        from .bundles import resolve_bundle_paths
+
+        return resolve_bundle_paths()
+    except Exception:
+        return {}
+
+
+def clear_ml_caches() -> None:
+    global _SKLEARN_CACHE, _SKLEARN_CACHE_PATH, _SETFIT_CACHE, _SETFIT_CACHE_PATH
+    _SKLEARN_CACHE = None
+    _SKLEARN_CACHE_PATH = None
+    _SETFIT_CACHE = None
+    _SETFIT_CACHE_PATH = None
 
 
 def _load_sklearn_router():
-    global _SKLEARN_CACHE
-    if _SKLEARN_CACHE is not None:
-        return _SKLEARN_CACHE
+    global _SKLEARN_CACHE, _SKLEARN_CACHE_PATH
     try:
         import joblib  # type: ignore
 
+        bp = _bundle_model_paths()
         path = Path(
             services.get_setting("assistant_sklearn_model_path", "")
             or os.environ.get("ASSISTANT_SKLEARN_MODEL", "")
+            or bp.get("sklearn_path", "")
             or str(DEFAULT_SKLEARN_MODEL_PATH)
         )
+        pstr = str(path)
+        if _SKLEARN_CACHE is not None and _SKLEARN_CACHE_PATH == pstr:
+            return _SKLEARN_CACHE or None
+        _SKLEARN_CACHE_PATH = pstr
         if not path.exists():
             _SKLEARN_CACHE = False
             return None
@@ -235,17 +258,21 @@ def _load_sklearn_router():
 
 
 def _load_setfit_router():
-    global _SETFIT_CACHE
-    if _SETFIT_CACHE is not None:
-        return _SETFIT_CACHE
+    global _SETFIT_CACHE, _SETFIT_CACHE_PATH
     try:
         from setfit import SetFitModel  # type: ignore
 
+        bp = _bundle_model_paths()
         path = Path(
             services.get_setting("assistant_setfit_model_dir", "")
             or os.environ.get("ASSISTANT_SETFIT_MODEL_DIR", "")
+            or bp.get("setfit_dir", "")
             or str(DEFAULT_SETFIT_MODEL_DIR)
         )
+        pstr = str(path)
+        if _SETFIT_CACHE is not None and _SETFIT_CACHE_PATH == pstr:
+            return _SETFIT_CACHE or None
+        _SETFIT_CACHE_PATH = pstr
         if not path.exists():
             _SETFIT_CACHE = False
             return None

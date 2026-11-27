@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "spms-co-camp"
-version = "0.1.0"
+version = "2.4.6"
 description = "Co-Camp — the Manager Assistant for SPMS, developed by Michael Helmy (bundled small model + fine-tuned intent router + GGUF)."
 readme = "README.md"
 requires-python = ">=3.10"

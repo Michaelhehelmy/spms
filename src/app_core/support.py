@@ -7,11 +7,13 @@ keys, formats a GitHub-friendly report, and builds prefilled issue URLs.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import platform
 import re
 import sys
 import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -389,6 +391,105 @@ def generate_support_bundle(
         repo=DEFAULT_REPO,
     )
     return {"diagnostics": diag, "markdown": md, "issue": issue}
+
+
+DEFAULT_REPORT_UPLOAD_URL = "https://spms-landing.pages.dev/api/report"
+SUPPORT_REPORTS_DIR = paths.DATA_DIR / "support_reports"
+logger = logging.getLogger(__name__)
+
+
+def record_support_report(report: dict[str, Any]) -> Path:
+    """Store a sanitized support report locally for traceability."""
+    SUPPORT_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    rid = str(report.get("id") or report.get("generated_at_client") or ts).replace(":", "-").replace(".", "-")
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", rid).strip("-")[:80] or ts
+    path = SUPPORT_REPORTS_DIR / f"report-{safe}.json"
+    payload = sanitize_for_report(report)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def upload_support_report(report: dict[str, Any], upload_url: str | None = None) -> dict[str, Any]:
+    """Upload a sanitized support report to the landing page report endpoint."""
+    url = (upload_url or os.environ.get("SPMS_REPORT_UPLOAD_URL") or DEFAULT_REPORT_UPLOAD_URL).strip()
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("https", "http") or not parsed.netloc:
+        return {"ok": False, "error": "invalid_upload_url"}
+    body = json.dumps(sanitize_for_report(report), ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(url, data=body, method="POST")
+    req.add_header("Content-Type", "application/json")
+    req.add_header("User-Agent", "spms-support-report/1")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:  # nosec B310 - scheme validated above
+            raw = resp.read().decode("utf-8", errors="ignore")
+            data = json.loads(raw) if raw else {}
+            ok = bool(resp.status >= 200 and resp.status < 300 and data.get("ok", True))
+            return {"ok": ok, "status": resp.status, "data": data}
+    except Exception as e:
+        logger.info("support report upload failed: %s", e)
+        return {"ok": False, "error": str(e)}
+
+
+def list_support_reports(limit: int = 50) -> list[dict[str, Any]]:
+    SUPPORT_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    files = sorted(SUPPORT_REPORTS_DIR.glob("report-*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    out = []
+    for p in files[: max(1, int(limit or 50))]:
+        try:
+            st = p.stat()
+            out.append({
+                "name": p.name,
+                "path": str(p),
+                "bytes": st.st_size,
+                "modified_at": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat(),
+            })
+        except Exception:
+            continue
+    return out
+
+
+def delete_support_report(name: str) -> bool:
+    safe = Path(str(name or "")).name
+    if not safe.startswith("report-") or not safe.endswith(".json"):
+        return False
+    p = SUPPORT_REPORTS_DIR / safe
+    if p.exists():
+        p.unlink()
+        return True
+    return False
+
+
+def clear_support_reports() -> int:
+    n = 0
+    if not SUPPORT_REPORTS_DIR.exists():
+        return 0
+    for p in SUPPORT_REPORTS_DIR.glob("report-*.json"):
+        try:
+            p.unlink()
+            n += 1
+        except Exception:
+            pass
+    return n
+
+
+def cleanup_support_reports(retention_days: int | None = None) -> int:
+    try:
+        days = int(retention_days if retention_days is not None else os.environ.get("SPMS_SUPPORT_REPORT_RETENTION_DAYS", "90"))
+    except Exception:
+        days = 90
+    if days <= 0 or not SUPPORT_REPORTS_DIR.exists():
+        return 0
+    cutoff = datetime.now(timezone.utc).timestamp() - (days * 86400)
+    n = 0
+    for p in SUPPORT_REPORTS_DIR.glob("report-*.json"):
+        try:
+            if p.stat().st_mtime < cutoff:
+                p.unlink()
+                n += 1
+        except Exception:
+            pass
+    return n
 
 
 def _cli_main(argv: list[str] | None = None) -> int:

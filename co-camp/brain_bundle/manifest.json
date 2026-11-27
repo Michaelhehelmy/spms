@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "bundle_id": "cocamp",
+  "name": "Co-Camp",
+  "display_name": "Co-Camp — SPMS Manager Assistant",
+  "version": "2.4.6",
+  "description": "Co-Camp assistant brain bundle specialized for SPMS operations, business, and management workflows.",
+  "developer": "Michael Helmy",
+  "repo_url": "https://github.com/Michaelhehelmy/spms-co-camp-models",
+  "brain": {
+    "path": "brain/agent_brain.json",
+    "format": "spms_agent_brain_v1"
+  },
+  "models": {
+    "intent_router": {
+      "setfit_dir": "models/assistant_intent_setfit",
+      "sklearn_joblib": "models/assistant_intent_sklearn.joblib"
+    },
+    "gguf": {
+      "path": "model/SmolLM2-135M-Instruct-Q4_K_M.gguf"
+    }
+  },
+  "training": {
+    "persona_examples": "co_camp/data/persona_examples.jsonl",
+    "build_script": "co_camp/build_examples.py",
+    "train_script": "co_camp/train_co_camp.py"
+  },
+  "capabilities": {
+    "deterministic_tools": true,
+    "local_nlu": true,
+    "local_gguf_rephrase": true,
+    "training_share": true
+  }
+}

@@ -64,16 +64,23 @@
         <label style="display:flex; gap:8px; align-items:center;"><input id="f-include-steps" type="checkbox" checked/> Include recent in-app steps/actions (best effort)</label>
       </div>
       <p class="muted small">Review before sharing. Do not add passwords, recovery codes, guest/payment data, or secrets. When generated, your details and auto-collected info are included in the downloaded report file.</p>
+      <div class="panel" style="margin-top:10px; padding:10px;">
+        <label style="display:flex; gap:8px; align-items:flex-start;">
+          <input id="f-share-report" type="checkbox" {% if data_contribution_enabled %}checked{% endif %}/>
+          <span><strong>Share this sanitized report to help improve SPMS</strong><br><span class="muted small">Records the issue locally in the app and, when checked, sends the sanitized report to the SPMS landing page report route for maintainer review. No passwords, secrets, tokens, guest/payment records, or raw DB data.</span></span>
+        </label>
+      </div>
       <div class="actions" style="gap:8px; flex-wrap:wrap; margin-top:8px;">
         <button type="button" class="primary" id="btn-generate">Generate report</button>
+        <button type="button" id="btn-send" disabled>Send report</button>
         <button type="button" id="btn-copy" disabled>Copy Markdown</button>
         <button type="button" id="btn-download" disabled>Download .md</button>
-        <button type="button" id="btn-download-json" disabled>Download .json (upload this)</button>
+        <button type="button" id="btn-download-json" disabled>Download .json</button>
         <a id="btn-github" class="btn" href="#" target="_blank" rel="noopener" aria-disabled="true" style="pointer-events:none;opacity:.6;">Open GitHub issue</a>
       </div>
       <div id="gen-status" class="muted small" style="margin-top:8px;"></div>
       <div class="note" style="margin-top:10px;">
-        <strong>Next step:</strong> after downloading the JSON report, go to the landing page and upload it in <strong>“Send an issue report from the app”</strong> to send it to the maintainer. If upload isn’t available, attach the downloaded file to a GitHub issue instead.
+        <strong>Send/report options:</strong> <em>Send report</em> records the sanitized issue locally and can upload it to the SPMS landing page when sharing is checked. You can still download the JSON/Markdown or open a GitHub issue manually.
       </div>
     </form>
   </section>
@@ -254,7 +261,9 @@
 
   let lastMarkdown = '';
   let lastReport = null;
+  const CSRF = {{ csrf_token | tojson }};
   const btnGen = document.getElementById('btn-generate');
+  const btnSend = document.getElementById('btn-send');
   const btnCopy = document.getElementById('btn-copy');
   const btnDl = document.getElementById('btn-download');
   const btnDlJson = document.getElementById('btn-download-json');
@@ -273,7 +282,7 @@
   ['f-include-device','f-include-steps'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('change', renderPreviewDiagnostics); });
 
   function setEnabled(enabled){
-    [btnCopy, btnDl, btnDlJson].forEach(b=>{ if(b) b.disabled = !enabled; });
+    [btnSend, btnCopy, btnDl, btnDlJson].forEach(b=>{ if(b) b.disabled = !enabled; });
     if(btnGh){
       btnGh.style.pointerEvents = enabled ? 'auto' : 'none';
       btnGh.style.opacity = enabled ? '1' : '.6';
@@ -289,7 +298,7 @@
     if(btnGh){ btnGh.href = issue.url; }
     if(diagPreview){ diagPreview.textContent = JSON.stringify(lastReport, null, 2); }
     setEnabled(true);
-    if(status){ status.textContent = (issue.truncated ? 'Report generated (GitHub URL body truncated). ' : 'Report generated. ') + 'Download the JSON report file, then upload it on the landing page (“Send an issue report from the app”) to send it to the maintainer. You can also attach it to a GitHub issue.'; }
+    if(status){ status.textContent = (issue.truncated ? 'Report generated (GitHub URL body truncated). ' : 'Report generated. ') + 'Use “Send report” to record/upload the sanitized report, or download/open a GitHub issue manually.'; }
   });
 
   if(btnCopy) btnCopy.addEventListener('click', async function(){
@@ -315,8 +324,68 @@
   if(btnDlJson) btnDlJson.addEventListener('click', function(){
     if(!lastReport) return;
     downloadBlob(JSON.stringify(lastReport, null, 2), 'property-manager-issue-report.json', 'application/json;charset=utf-8');
-    if(status) status.textContent = 'JSON report downloaded. Next: upload this file on the landing page in “Send an issue report from the app” to send it to the maintainer (or attach it to a GitHub issue).';
+    if(status) status.textContent = 'JSON report downloaded. You can also use “Send report” or attach it to a GitHub issue.';
+  });
+
+  if(btnSend) btnSend.addEventListener('click', async function(){
+    if(!lastReport){ if(status) status.textContent = 'Generate the report first.'; return; }
+    const share = !!(document.getElementById('f-share-report') && document.getElementById('f-share-report').checked);
+    btnSend.disabled = true;
+    if(status) status.textContent = share ? 'Recording and sending sanitized report...' : 'Recording sanitized report locally...';
+    try {
+      const res = await fetch('/support/report/send', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRF-Token': CSRF},
+        body: JSON.stringify({report: lastReport, share: share})
+      });
+      const data = await res.json().catch(()=>({ok:false,error:'Invalid server response'}));
+      if(data.ok){
+        let msg = data.recorded ? `Report recorded locally${data.path ? ' ('+data.path+')' : ''}.` : 'Report processed.';
+        if(share){
+          msg += data.uploaded ? ' Sent to SPMS landing page for maintainer review.' : ` Upload failed: ${(data.upload && (data.upload.error || data.upload.status)) || 'unknown error'}.`;
+        }
+        if(status) status.textContent = msg;
+      } else {
+        if(status) status.textContent = 'Send failed: ' + (data.error || 'unknown error');
+      }
+    } catch(e){
+      if(status) status.textContent = 'Send failed: ' + (e && e.message ? e.message : 'network error');
+    } finally {
+      btnSend.disabled = false;
+    }
   });
 })();
 </script>
+
+<section class="card" style="margin-top:16px;">
+  <h3>Locally recorded support reports</h3>
+  <p class="muted small">Sanitized reports you recorded/sent from this app. Retention: {{ support_report_retention_days }} day(s) (0 disables auto-cleanup). Configure in Settings: <code>support_report_retention_days</code>.</p>
+  {% if recorded_reports %}
+  <div style="overflow:auto">
+    <table>
+      <tr><th>File</th><th>Modified (UTC)</th><th>Size</th><th>Action</th></tr>
+      {% for r in recorded_reports %}
+      <tr>
+        <td><code>{{ r.name }}</code></td>
+        <td class="muted">{{ r.modified_at }}</td>
+        <td class="muted">{{ r.bytes }} bytes</td>
+        <td>
+          <form method="post" action="/support/report/delete" style="margin:0">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"/>
+            <input type="hidden" name="name" value="{{ r.name }}"/>
+            <button type="submit" class="ghost">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  <form method="post" action="/support/report/clear" style="margin-top:10px">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"/>
+    <button type="submit" class="warn">Delete all local reports</button>
+  </form>
+  {% else %}
+  <p class="muted">No local support reports recorded yet.</p>
+  {% endif %}
+</section>
 {% endblock %}

@@ -56,7 +56,9 @@ def _is_test_env() -> bool:
 
 
 def _enabled() -> bool:
-    return _setting("assistant_training_share_enabled", "false").lower() not in _FALSE_VALUES
+    a = _setting("app_data_contribution_enabled", "false").lower() not in _FALSE_VALUES
+    b = _setting("assistant_training_share_enabled", "false").lower() not in _FALSE_VALUES
+    return bool(a or b)
 
 
 def _min_bytes() -> int:
@@ -120,6 +122,16 @@ def _sanitize_feedback(rows: list[dict]) -> list[dict]:
 
 def build_training_share_package() -> dict[str, Any]:
     """Build a sanitized training-data package for maintainer review/retraining."""
+    bundle_id = "spms_default"
+    assistant_name = "Co-Camp"
+    try:
+        from .bundles import get_active_bundle
+
+        b = get_active_bundle()
+        bundle_id = b.id
+        assistant_name = b.name or assistant_name
+    except Exception:
+        pass
     feedback = _sanitize_feedback(_load_jsonl(PROJECT_ROOT / "data" / "assistant_nlu" / "feedback.jsonl"))
     intent_seed = _load_jsonl(PROJECT_ROOT / "data" / "assistant_nlu" / "intents_seed.jsonl")
     persona = _load_jsonl(PROJECT_ROOT / "co-camp" / "co_camp" / "data" / "persona_examples.jsonl")
@@ -154,7 +166,8 @@ def build_training_share_package() -> dict[str, Any]:
         "version": 1,
         "created_at": _now_iso(),
         "app": "SPMS",
-        "assistant": "Co-Camp",
+        "assistant": assistant_name,
+        "bundle_id": bundle_id,
         "consent": {
             "opt_in": True,
             "setting": "assistant_training_share_enabled",

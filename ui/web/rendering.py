@@ -56,6 +56,8 @@ def render(request: Request, name: str, ctx: dict | None = None, status: int = 2
         update_notice = None
     update_notice_key = _update_notice_key(update_notice)
     show_update_modal = False
+    data_contribution_enabled = False
+    show_data_contribution_notice = False
     try:
         sess = deps.get_session(request)
         dismissed_key = sess.get("dismissed_update_key") if isinstance(sess, dict) else None
@@ -65,6 +67,12 @@ def render(request: Request, name: str, ctx: dict | None = None, status: int = 2
             and update_notice_key
             and dismissed_key != update_notice_key
         )
+        data_contribution_enabled = (
+            str(services.get_setting("app_data_contribution_enabled", "false")).lower() == "true"
+            or str(services.get_setting("assistant_training_share_enabled", "false")).lower() == "true"
+        )
+        dismissed_contrib = sess.get("dismissed_data_contribution_notice") if isinstance(sess, dict) else None
+        show_data_contribution_notice = (not data_contribution_enabled) and (not bool(dismissed_contrib))
     except Exception:
         show_update_modal = bool(update_notice and update_notice.get("update_available"))
     context = {
@@ -79,6 +87,8 @@ def render(request: Request, name: str, ctx: dict | None = None, status: int = 2
         "update_notice": update_notice,
         "update_notice_key": update_notice_key,
         "show_update_modal": show_update_modal,
+        "data_contribution_enabled": data_contribution_enabled,
+        "show_data_contribution_notice": show_data_contribution_notice,
         "current_user": deps.get_current_user(request) if hasattr(deps, "get_current_user") else None,
         "current_actor": deps.current_actor(request) if hasattr(deps, "current_actor") else None,
     }

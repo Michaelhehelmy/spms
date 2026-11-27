@@ -321,15 +321,29 @@ def _default_tools() -> dict[str, dict[str, Any]]:
         return {}  # pragma: no cover
 
 
+def _resolve_default_brain_path() -> Path:
+    try:
+        from .bundles import get_active_bundle
+
+        b = get_active_bundle()
+        if b.brain_path:
+            bp = Path(b.brain_path)
+            if bp.exists():
+                return bp
+    except Exception:
+        pass
+    return BRAIN_PATH
+
+
 def load_brain(path: Path | None = None, tools: dict[str, dict[str, Any]] | None = None, *, force: bool = False) -> Brain:
     global _BRAIN_CACHE, _BRAIN_MTIME
-    p = path or BRAIN_PATH
+    p = path or _resolve_default_brain_path()
     tools = tools if tools is not None else _default_tools()
     try:
         mtime = p.stat().st_mtime if p.exists() else None
     except OSError:  # pragma: no cover - defensive filesystem edge case
         mtime = None
-    if not force and _BRAIN_CACHE is not None and p == (_BRAIN_CACHE.path or BRAIN_PATH) and mtime == _BRAIN_MTIME:
+    if not force and _BRAIN_CACHE is not None and p == _BRAIN_CACHE.path and mtime == _BRAIN_MTIME:
         return _BRAIN_CACHE
 
     if p.exists():

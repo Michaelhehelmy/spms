@@ -5,7 +5,7 @@
     <h2>Manager Assistant</h2>
     <p class="page-subtitle">Grounded, read-only chat over real backend data — answers stream in with a live typing effect.</p>
   </div>
-  <div class="status-chip">mode <code>{{ llm.response_mode }}</code> · provider <code>{{ llm.provider }}</code>{% if llm.enabled %} · model <code>{{ llm.model }}</code>{% endif %}</div>
+  <div class="status-chip">brain <code>{{ llm.bundle_name or llm.bundle_id or 'SPMS Default' }}</code> · mode <code>{{ llm.response_mode }}</code> · provider <code>{{ llm.provider }}</code>{% if llm.enabled %} · model <code>{{ llm.model }}</code>{% endif %}</div>
 </div>
 <div class="subtabs" role="tablist"><a href="/assistant" class="active">Chat</a></div>
 <div class="subtab-help">Ask in plain language with context (IDs, names, date ranges). I use real tools/data only — no changes, no guesses.</div>

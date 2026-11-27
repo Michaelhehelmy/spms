@@ -30,6 +30,16 @@ def _pkg():
 
 def _llm_config():
     """Local-only config. No external endpoints or OpenAI API calls."""
+    bundle_id = "spms_default"
+    bundle_name = "SPMS Default"
+    try:
+        from .bundles import get_active_bundle
+
+        b = get_active_bundle()
+        bundle_id = b.id
+        bundle_name = b.name
+    except Exception:
+        b = None
     try:
         provider = (services.get_setting("assistant_provider", "auto") or "auto").strip().lower()
         response_mode = (services.get_setting("assistant_response_mode", "talking") or "talking").strip().lower()
@@ -38,6 +48,8 @@ def _llm_config():
             or os.environ.get("ASSISTANT_LOCAL_MODEL_PATH", "")
             or ""
         ).strip()
+        if not model_path and b is not None and b.gguf_path and Path(b.gguf_path).exists():
+            model_path = str(b.gguf_path)
         if not model_path:
             for candidate in [
                 PROJECT_ROOT / "models" / "assistant-smollm2-360m-q4_k_m.gguf",
@@ -71,6 +83,8 @@ def _llm_config():
         "local_available": local_available,
         "enabled": enabled,
         "external": False,
+        "bundle_id": bundle_id,
+        "bundle_name": bundle_name,
     }
 
 
