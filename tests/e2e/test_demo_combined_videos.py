@@ -10,10 +10,8 @@ import pytest
 
 pytest.importorskip("playwright")
 
-pytestmark = pytest.mark.skipif(
-    os.environ.get("E2E_DEMO", "").lower() not in ("1", "true", "yes", "on", "demo"),
-    reason="Demo video recording; set E2E_DEMO=1",
-)
+if os.environ.get("E2E_DEMO", "").lower() not in ("1", "true", "yes", "on", "demo"):
+    pytest.skip("Demo video recording; set E2E_DEMO=1", allow_module_level=True)
 
 from playwright.sync_api import expect
 
