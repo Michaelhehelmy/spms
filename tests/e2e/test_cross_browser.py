@@ -18,11 +18,11 @@ def _setup_unlock(page, e2e_server):
     page.goto(base + "/setup")
     page.fill('input[name="display_name"]', "E2E Property")
     page.select_option('select[name="animation"]', "reveal")
-    page.click('button[type="submit"]')
+    page.click('button[type="submit"]:not(.ghost)')
     page.wait_for_url(lambda url: url == base + "/")
     page.goto(base + "/unlock")
     page.fill('input[name="password"]', "e2e-pass-123")
-    page.click('button[type="submit"]')
+    page.click('button[type="submit"]:not(.ghost)')
     page.wait_for_url(lambda url: url == base + "/")
 
 

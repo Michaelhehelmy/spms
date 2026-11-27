@@ -25,7 +25,7 @@ def test_setup_wizard_completes_and_redirects(e2e_server, page, setup_app):
 
 def test_setup_wizard_requires_display_name(e2e_server, page):
     page.goto(e2e_server.base_url + "/setup")
-    page.click('button[type="submit"]')
+    page.click('button[type="submit"]:not(.ghost)')
     page.wait_for_load_state("networkidle", timeout=15000)
     assert page.url == f"{e2e_server.base_url}/setup"
 
@@ -35,7 +35,7 @@ def test_unlock_wrong_password_shows_flash(e2e_server, page, setup_app):
     setup_app("E2E Property")
     page.goto(base + "/unlock")
     page.fill('input[name="password"]', "definitely-wrong")
-    page.click('button[type="submit"]')
+    page.click('button[type="submit"]:not(.ghost)')
     page.wait_for_load_state("networkidle", timeout=15000)
     expect(page.get_by_text("Invalid super password")).to_be_visible()
 
@@ -45,7 +45,7 @@ def test_unlock_success_shows_lock_button(e2e_server, page, setup_app, unlock, p
     setup_app("E2E Property")
     page.goto(base + "/unlock")
     page.fill('input[name="password"]', password)
-    page.click('button[type="submit"]')
+    page.click('button[type="submit"]:not(.ghost)')
     page.wait_for_url(lambda url: url == f"{base}/")
     expect(page.get_by_text("🔒 Lock session")).to_be_visible()
 

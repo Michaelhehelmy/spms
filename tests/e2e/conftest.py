@@ -442,11 +442,11 @@ def _setup_unlock(page, e2e_server):
     page.goto(base + "/setup")
     page.fill('input[name="display_name"]', "E2E Property")
     page.select_option('select[name="animation"]', "reveal")
-    page.click('button[type="submit"]')
+    page.click('button[type="submit"]:not(.ghost)')
     page.wait_for_url(lambda url: url == base + "/")
     page.goto(base + "/unlock")
     page.fill('input[name="password"]', "e2e-pass-123")
-    page.click('button[type="submit"]')
+    page.click('button[type="submit"]:not(.ghost)')
     page.wait_for_url(lambda url: url == base + "/")
 
 
@@ -464,10 +464,18 @@ def setup_app(page, e2e_server):
     def _setup(name: str = "Acadia Camp"):
         base = e2e_server.base_url
         page.goto(base + "/setup")
+        # dismiss optional data-contribution notice if it appears
+        try:
+            notice = page.locator('form[action="/settings/data-contribution/dismiss"] button[type="submit"]')
+            if notice.count() > 0 and notice.first.is_visible():
+                notice.first.click()
+                page.wait_for_load_state("domcontentloaded")
+        except Exception:
+            pass
         page.fill('input[name="display_name"]', name)
         page.fill('input[name="tagline"]', "E2E property")
         page.select_option('select[name="animation"]', "reveal")
-        page.click('button[type="submit"]')
+        page.click('button[type="submit"]:not(.ghost)')
         page.wait_for_url(lambda url: url == f"{base}/")
         return page
 
@@ -480,7 +488,7 @@ def unlock(page, e2e_server):
         base = e2e_server.base_url
         page.goto(base + "/unlock")
         page.fill('input[name="password"]', password)
-        page.click('button[type="submit"]')
+        page.click('button[type="submit"]:not(.ghost)')
         page.wait_for_url(lambda url: url == f"{base}/")
         return page
 

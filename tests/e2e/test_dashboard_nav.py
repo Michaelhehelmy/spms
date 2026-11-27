@@ -74,11 +74,11 @@ def test_mobile_viewport(e2e_server, browser, setup_app, unlock):
         page.goto(base + "/setup")
         page.fill('input[name="display_name"]', "E2E Property")
         page.select_option('select[name="animation"]', "reveal")
-        page.click('button[type="submit"]')
+        page.click('button[type="submit"]:not(.ghost)')
         page.wait_for_url(lambda url: url == f"{base}/")
         page.goto(base + "/unlock")
         page.fill('input[name="password"]', "e2e-pass-123")
-        page.click('button[type="submit"]')
+        page.click('button[type="submit"]:not(.ghost)')
         page.wait_for_url(lambda url: url == f"{base}/")
         # App renders on mobile: brand + nav links present in DOM.
         expect(page.get_by_role("heading", name="E2E Property")).to_be_visible()
