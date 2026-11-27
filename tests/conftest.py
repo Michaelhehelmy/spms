@@ -107,20 +107,3 @@ def sum_ledger(column, entry_type=None):
 def get_guest_count():
     return db.connect().execute("SELECT COUNT(*) FROM guests").fetchone()[0]
 
-# Re-export e2e helpers for e2e flow imports (from conftest import ...)
-try:
-    from tests.e2e.conftest import (  # noqa: F401
-        DEMO_DIR,
-        TEST_PASSWORD as E2E_TEST_PASSWORD,
-        caption,
-        demo_click,
-        demo_install_cursor,
-        demo_move,
-        demo_select,
-        demo_type,
-        hide_update_modal,
-        is_demo_mode,
-        record_video,
-    )
-except Exception:
-    pass

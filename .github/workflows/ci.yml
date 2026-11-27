@@ -68,7 +68,7 @@ jobs:
           PYTHONPATH: src
         run: |
           echo "::group::Full test suite"
-          python -m pytest tests -q --maxfail=20 --randomly-seed=1337
+          python -m pytest tests -q --maxfail=20 --randomly-seed=1337 --import-mode=importlib
           echo "::endgroup::"
 
       - name: Generate coverage report (enforced on 3.12)
@@ -78,7 +78,7 @@ jobs:
           PYTHONPATH: src
         run: |
           python -m pip install --require-hashes -r requirements/ci-pytest-cov.txt
-          python -m pytest tests -q --maxfail=20 --randomly-seed=1337 --cov=src/app_core --cov=ui --cov-report=term-missing --cov-report=xml:coverage.xml --cov-fail-under=95
+          python -m pytest tests -q --maxfail=20 --randomly-seed=1337 --import-mode=importlib --cov=src/app_core --cov=ui --cov-report=term-missing --cov-report=xml:coverage.xml --cov-fail-under=95
 
       - name: Upload coverage artifacts
         if: matrix.python-version == '3.12' && always() && hashFiles('coverage.xml') != ''
