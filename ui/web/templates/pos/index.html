@@ -22,7 +22,7 @@
 
 <div class="panel"><h3>Barcode scan / lookup (item or batch/lot)</h3>
   <p class="muted">Resolves item SKU/barcode or lot code and shows batch data. Embedded QR payloads are decoded if present.</p>
-  <form method="get" action="/pos" class="row"><input type="hidden" name="tab" value="sell"/><label style="flex:1">Scan or enter code<input name="scan" value="{{scan}}" placeholder="Scan barcode / lot code" autofocus/></label><div style="flex:0"><button type="submit">Resolve</button></div></form>
+  <form method="get" action="/pos" class="row"><input type="hidden" name="tab" value="sell"/><label style="flex:1">Scan or enter code<input name="scan" value="{{scan}}" placeholder="Scan barcode / lot code" autofocus/></label><div class="row-action"><button type="submit">Resolve</button></div></form>
   {% if scan_result %}
     {% if scan_result.type == 'batch' %}
       <div class="ok" style="margin-top:8px"><strong>Batch/Lot found:</strong> {{scan_result.batch.lot_code}} — {{scan_result.item.item_name if scan_result.item else ''}} (item #{{scan_result.batch.item_id}})</div>
@@ -118,7 +118,7 @@
   </div>
   <div class="panel"><h3>Quick add from inventory</h3>
     <p class="muted">Search and add to cart quickly. Full item management is in <a href="/pos?tab=inventory">Inventory</a>; specific lots in <a href="/pos?tab=batches">Batches</a>.</p>
-    <form method="get" class="row"><input type="hidden" name="tab" value="sell"/><input name="q" value="{{q}}" placeholder="Search inventory"/><div style="flex:0"><button>Search</button></div></form>
+    <form method="get" class="row"><input type="hidden" name="tab" value="sell"/><input name="q" value="{{q}}" placeholder="Search inventory"/><div class="row-action"><button>Search</button></div></form>
     <table><tr><th>ID</th><th>Name</th><th>Sell</th><th>Stock</th><th></th></tr>
     {% for i in inv %}
     <tr>
@@ -150,7 +150,7 @@
 </ul></details>
 
 <div class="panel"><h3>Inventory items</h3>
-  <form method="get" class="row"><input type="hidden" name="tab" value="inventory"/><input name="q" value="{{q}}" placeholder="Search inventory by name/SKU/barcode"/><div style="flex:0"><button>Search</button></div></form>
+  <form method="get" class="row"><input type="hidden" name="tab" value="inventory"/><input name="q" value="{{q}}" placeholder="Search inventory by name/SKU/barcode"/><div class="row-action"><button>Search</button></div></form>
   <p class="muted">Quick sale actions go to Sell tab; select Batches to manage/choose specific lots.</p>
   <table><tr><th>ID</th><th>Name / Barcode</th><th>Sell</th><th>Stock</th><th>Next expiry</th><th>Recipe</th><th>Actions</th></tr>
   {% for i in inv %}
@@ -226,7 +226,7 @@
   </div>
   <div class="panel"><h3>Filter batches</h3>
     <p class="muted">View all active batches or filter to a specific item.</p>
-    <form method="get" class="row"><input type="hidden" name="tab" value="batches"/><label>Item ID (optional)<input name="batch_item" value="{{batch_item}}" placeholder="e.g. 12"/></label><div style="flex:0"><button>Show</button></div></form>
+    <form method="get" class="row"><input type="hidden" name="tab" value="batches"/><label>Item ID (optional)<input name="batch_item" value="{{batch_item}}" placeholder="e.g. 12"/></label><div class="row-action"><button>Show</button></div></form>
     {% if batch_item %}<p><a href="/pos?tab=batches">Show all active batches</a></p>{% endif %}
     <p class="muted">Tip: from Inventory/Sell you can click “Batches” on an item to jump here.</p>
   </div>

@@ -15,7 +15,7 @@
         <option value="" {% if not status_filter %}selected{% endif %}>All statuses</option>
         {% for s in ['pending','in_progress','done','inspected','cancelled'] %}<option value="{{s}}" {% if status_filter==s %}selected{% endif %}>{{s}}</option>{% endfor %}
       </select>
-      <div style="flex:0"><button type="submit">Filter</button></div>
+      <div class="row-action"><button type="submit">Filter</button></div>
     </form>
     <div class="table-wrap"><table>
       <tr><th>ID</th><th>Room</th><th>Type</th><th>Status</th><th>Priority</th><th>Assignee</th><th>Due</th><th>Notes</th><th>Actions</th></tr>
@@ -67,7 +67,7 @@
         <option value="resolved" {% if block_status_filter=='resolved' %}selected{% endif %}>Resolved</option>
         <option value="" {% if block_status_filter in ['','all'] %}selected{% endif %}>All</option>
       </select>
-      <div style="flex:0"><button type="submit">Filter blocks</button></div>
+      <div class="row-action"><button type="submit">Filter blocks</button></div>
     </form>
     <p class="muted">Active blocks prevent room availability for overlapping dates. Resolved blocks are kept for history.</p>
     <div class="table-wrap"><table>

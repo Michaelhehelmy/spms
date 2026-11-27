@@ -95,6 +95,8 @@ label > .hint{font-weight:400;color:var(--text-muted);font-size:12px}
 .field-help,.help{font-size:12px;color:var(--text-muted);margin:-4px 0 8px}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
 .row>*{flex:1 1 160px;min-width:0}
+.row>.row-action{flex:0 0 auto;min-width:auto}
+.row>.row-action>button,.row>.row-action>.btn{width:100%}
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px}
 
 /* Buttons */
@@ -232,6 +234,7 @@ form.inline{display:inline}
   table{min-width:520px}
   th,td{padding:9px 10px}
   .row>*{flex-basis:100%}
+  .row>.row-action,.row>[style*="flex:0"],.row>[style*="flex: 0"]{flex:1 1 100% !important}
   .actions > *, .toolbar > *{flex:1 1 100%}
   .actions > .btn, .actions > button, .toolbar > .btn, .toolbar > button{width:100%}
   .flash{font-size:12px}

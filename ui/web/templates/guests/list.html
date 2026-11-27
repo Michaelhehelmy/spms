@@ -5,7 +5,7 @@
 {{ subtabs([{'key':'directory','href':'/guests?tab=directory','label':'Directory'}], active_tab, 'Guests sections') }}
 {{ subtab_help('Search guests and open full 360° profiles (stays, POS/orders, payments, invoices, totals).') }}
 <details class="help-box"><summary>How to use Guests</summary><ul><li><strong>Search:</strong> type a name, phone, or email fragment and click Search.</li><li><strong>Open portfolio:</strong> view complete guest history and manage profile details (edit requires unlock + super password).</li><li><strong>Tip:</strong> ask Manager Assistant, e.g. <code>show guest #3 full portfolio</code>.</li></ul></details>
-<div class="panel"><form method="get" class="row"><input type="hidden" name="tab" value="directory"/><input name="q" value="{{q}}" placeholder="Search name/phone/email" title="Search by guest name, phone, or email"/><div style="flex:0"><button type="submit">Search</button></div></form></div>
+<div class="panel"><form method="get" class="row"><input type="hidden" name="tab" value="directory"/><input name="q" value="{{q}}" placeholder="Search name/phone/email" title="Search by guest name, phone, or email"/><div class="row-action"><button type="submit">Search</button></div></form></div>
 <div class="panel"><table>
   <tr><th>ID</th><th>Name</th><th>Phone</th><th>Email</th><th>Stays</th><th>Last Stay</th><th>Total (est.)</th><th>Outstanding</th><th></th></tr>
 {% for r in rows %}<tr>

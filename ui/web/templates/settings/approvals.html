@@ -26,7 +26,7 @@
         <option value="" {% if not status_filter %}selected{% endif %}>All statuses</option>
         {% for s in ['pending','approved','rejected','cancelled','executed'] %}<option value="{{s}}" {% if status_filter==s %}selected{% endif %}>{{s}}</option>{% endfor %}
       </select>
-      <div style="flex:0"><button type="submit">Apply</button></div>
+      <div class="row-action"><button type="submit">Apply</button></div>
     </form>
     <p class="muted">Statuses: pending, approved, rejected, cancelled, executed. Execution remains action-specific and may be manual in this foundation stage.</p>
   </div>
