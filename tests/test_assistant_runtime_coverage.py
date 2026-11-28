@@ -21,6 +21,7 @@ def test_runtime_config_and_local_llm_helpers(monkeypatch, tmp_path):
         services,
         "get_setting",
         lambda k, d=None: {
+            "assistant_smart_enabled": "true",
             "assistant_provider": "openai",
             "assistant_response_mode": "talking",
             "assistant_local_model_path": str(model),

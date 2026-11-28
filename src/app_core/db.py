@@ -17,7 +17,7 @@ from . import paths
 DATA_DIR = paths.DATA_DIR
 BASE_DIR = paths.BASE_DIR
 DB_PATH = paths.DB_PATH
-SCHEMA_VERSION = 21
+SCHEMA_VERSION = 22
 
 _conn = None
 _lock = threading.RLock()
@@ -797,6 +797,70 @@ CREATE TABLE assistant_feedback (
 CREATE INDEX idx_assist_fb_created ON assistant_feedback(created_at);
 CREATE INDEX idx_assist_fb_intent ON assistant_feedback(corrected_intent);
 
+CREATE TABLE assistant_policy_audit (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    session_id TEXT NOT NULL DEFAULT '',
+    actor TEXT NOT NULL DEFAULT '',
+    actor_user_id INTEGER,
+    actor_role TEXT NOT NULL DEFAULT '',
+    message_preview TEXT NOT NULL DEFAULT '',
+    intent TEXT NOT NULL DEFAULT '',
+    action_type TEXT NOT NULL DEFAULT '',
+    effect TEXT NOT NULL DEFAULT '',
+    matched_rule_id TEXT NOT NULL DEFAULT '',
+    reason TEXT NOT NULL DEFAULT '',
+    args_summary_json TEXT NOT NULL DEFAULT '{}',
+    outcome TEXT NOT NULL DEFAULT '',
+    details_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX idx_asst_policy_audit_at ON assistant_policy_audit(at);
+CREATE INDEX idx_asst_policy_audit_effect ON assistant_policy_audit(effect, at);
+CREATE INDEX idx_asst_policy_audit_session ON assistant_policy_audit(session_id, at);
+
+CREATE TABLE assistant_session_memory (
+    session_id TEXT PRIMARY KEY,
+    actor_user_id INTEGER,
+    memory_json TEXT NOT NULL DEFAULT '{}',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    expires_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX idx_asst_mem_expires ON assistant_session_memory(expires_at);
+
+CREATE TABLE assistant_model_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    job_type TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'queued',
+    model_id TEXT NOT NULL DEFAULT '',
+    bundle_id TEXT NOT NULL DEFAULT '',
+    dataset_ref TEXT NOT NULL DEFAULT '',
+    dataset_fingerprint TEXT NOT NULL DEFAULT '',
+    config_json TEXT NOT NULL DEFAULT '{}',
+    metrics_json TEXT NOT NULL DEFAULT '{}',
+    artifact_path TEXT NOT NULL DEFAULT '',
+    log_path TEXT NOT NULL DEFAULT '',
+    error TEXT NOT NULL DEFAULT '',
+    actor TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX idx_asst_jobs_status ON assistant_model_jobs(status, created_at);
+CREATE INDEX idx_asst_jobs_model ON assistant_model_jobs(model_id, created_at);
+
+CREATE TABLE assistant_model_evals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    job_id INTEGER,
+    model_id TEXT NOT NULL DEFAULT '',
+    dataset_ref TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    passed INTEGER NOT NULL DEFAULT 0,
+    metrics_json TEXT NOT NULL DEFAULT '{}',
+    details_json TEXT NOT NULL DEFAULT '{}',
+    actor TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX idx_asst_evals_model ON assistant_model_evals(model_id, created_at);
+
 
 CREATE TABLE approvals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1476,6 +1540,75 @@ def _migrate_to_21(conn):
         """)
 
 
+def _migrate_to_22(conn):
+    # Smart Assistant V1/V2/V3 foundations (additive)
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS assistant_policy_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        session_id TEXT NOT NULL DEFAULT '',
+        actor TEXT NOT NULL DEFAULT '',
+        actor_user_id INTEGER,
+        actor_role TEXT NOT NULL DEFAULT '',
+        message_preview TEXT NOT NULL DEFAULT '',
+        intent TEXT NOT NULL DEFAULT '',
+        action_type TEXT NOT NULL DEFAULT '',
+        effect TEXT NOT NULL DEFAULT '',
+        matched_rule_id TEXT NOT NULL DEFAULT '',
+        reason TEXT NOT NULL DEFAULT '',
+        args_summary_json TEXT NOT NULL DEFAULT '{}',
+        outcome TEXT NOT NULL DEFAULT '',
+        details_json TEXT NOT NULL DEFAULT '{}'
+    );
+    CREATE INDEX IF NOT EXISTS idx_asst_policy_audit_at ON assistant_policy_audit(at);
+    CREATE INDEX IF NOT EXISTS idx_asst_policy_audit_effect ON assistant_policy_audit(effect, at);
+    CREATE INDEX IF NOT EXISTS idx_asst_policy_audit_session ON assistant_policy_audit(session_id, at);
+
+    CREATE TABLE IF NOT EXISTS assistant_session_memory (
+        session_id TEXT PRIMARY KEY,
+        actor_user_id INTEGER,
+        memory_json TEXT NOT NULL DEFAULT '{}',
+        updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        expires_at TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_asst_mem_expires ON assistant_session_memory(expires_at);
+
+    CREATE TABLE IF NOT EXISTS assistant_model_jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        job_type TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'queued',
+        model_id TEXT NOT NULL DEFAULT '',
+        bundle_id TEXT NOT NULL DEFAULT '',
+        dataset_ref TEXT NOT NULL DEFAULT '',
+        dataset_fingerprint TEXT NOT NULL DEFAULT '',
+        config_json TEXT NOT NULL DEFAULT '{}',
+        metrics_json TEXT NOT NULL DEFAULT '{}',
+        artifact_path TEXT NOT NULL DEFAULT '',
+        log_path TEXT NOT NULL DEFAULT '',
+        error TEXT NOT NULL DEFAULT '',
+        actor TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_asst_jobs_status ON assistant_model_jobs(status, created_at);
+    CREATE INDEX IF NOT EXISTS idx_asst_jobs_model ON assistant_model_jobs(model_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS assistant_model_evals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        job_id INTEGER,
+        model_id TEXT NOT NULL DEFAULT '',
+        dataset_ref TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'pending',
+        passed INTEGER NOT NULL DEFAULT 0,
+        metrics_json TEXT NOT NULL DEFAULT '{}',
+        details_json TEXT NOT NULL DEFAULT '{}',
+        actor TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_asst_evals_model ON assistant_model_evals(model_id, created_at);
+    """)
+
+
 def migrate():
     """Create or upgrade schema to SCHEMA_VERSION.
 
@@ -1547,6 +1680,8 @@ def migrate():
                     _migrate_to_20(conn)
                 if version < 21:
                     _migrate_to_21(conn)
+                if version < 22:
+                    _migrate_to_22(conn)
                 conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query - SCHEMA_VERSION is internal int constant
                 ensure_runtime_indexes(conn)
                 _record_migration_meta(conn, status="upgraded", from_version=from_version, to_version=SCHEMA_VERSION)

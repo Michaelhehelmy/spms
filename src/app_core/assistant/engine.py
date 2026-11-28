@@ -242,31 +242,78 @@ def _maybe_propose_action(intent, text, slots, ui_context=None):
 
         proposal = create_proposal(action_type, args, ui_context=ui_context or {})
         pre = (proposal.get("prechecks") or {}) if isinstance(proposal, dict) else {}
-        ok = bool(pre.get("ok")) if pre else False
-        summary = proposal.get("summary") or "Proposed action"
-        if ok:
-            ans = f"**Proposed action (requires your confirmation):** {summary}\n\nI’ve checked the referenced entities exist and validated the request as much as possible. Review the details and click **Confirm** to execute, or **Cancel**. No changes are made until you confirm."
-        else:
-            errs = pre.get("errors") or []
-            warns = pre.get("warnings") or []
-            parts = [f"**I can’t propose this action yet (validation failed):** {summary}"]
-            if errs:
-                parts.append("**Issues:**\n" + "\n".join([f"- {e}" for e in errs[:8]]))
-            if warns:
-                parts.append("**Notes:**\n" + "\n".join([f"- {w}" for w in warns[:6]]))
-            parts.append(
-                "Please correct the request (ensure the item/reservation/IDs exist and are valid) and I’ll re-check."
-            )
+        policy = (proposal.get("policy") or {}) if isinstance(proposal, dict) else {}
+        denied = str((proposal or {}).get("status") or "") == "denied" or str(policy.get("effect") or "") == "deny"
+        ok = bool(pre.get("ok")) and not denied if pre else (bool((proposal or {}).get("ok")) and not denied)
+        summary = (proposal or {}).get("summary") or "Proposed action"
+        if denied:
+            reason = str(policy.get("reason") or ((proposal.get("errors") or ["Denied by policy"])[0]))
+            rule_id = str(policy.get("matched_rule_id") or "").strip()
+            parts = [f"**Action blocked by policy:** {summary}"]
+            parts.append(f"**Decision:** deny")
+            if rule_id:
+                parts.append(f"**Matched rule:** {rule_id}")
+            parts.append(f"**Reason:** {reason}")
+            parts.append("This action cannot be executed as requested. You can adjust the request or review assistant policy settings.")
             ans = "\n\n".join(parts)
+            return {
+                "ok": False,
+                "intent": action_type,
+                "tools_used": ["validate_entities"],
+                "data": {"proposal": proposal, "prechecks": pre, "args": args, "policy": policy},
+                "answer": ans,
+                "proposed_action": None,
+                "source": "policy_deny",
+                "needs_confirmation": False,
+                "policy": policy,
+            }
+        if ok:
+            pol_eff = str(policy.get("effect") or "ask")
+            pol_reason = str(policy.get("reason") or "").strip()
+            pol_rule = str(policy.get("matched_rule_id") or "").strip()
+            conf_note = "explicit confirmation is required"
+            if pol_eff == "ask":
+                conf_note = "policy requires explicit confirmation before execution"
+            ans = f"**Proposed action (requires your confirmation):** {summary}\n\nI’ve checked the referenced entities exist and validated the request as much as possible. Review the details and click **Confirm** to execute, or **Cancel**. No changes are made until you confirm."
+            if pol_reason or pol_rule:
+                ans += f"\n\n**Policy:** {pol_eff}" + (f" ({pol_rule})" if pol_rule else "") + (f" — {pol_reason}" if pol_reason else "")
+            ans += f"\n**Confirmation:** {conf_note}."
+            return {
+                "ok": True,
+                "intent": action_type,
+                "tools_used": ["validate_entities"],
+                "data": {"proposal": proposal, "prechecks": pre, "args": args, "policy": policy},
+                "answer": ans,
+                "proposed_action": proposal,
+                "source": "action_proposal",
+                "needs_confirmation": True,
+                "policy": policy,
+            }
+        errs = (pre.get("errors") or []) if isinstance(pre, dict) else []
+        warns = (pre.get("warnings") or []) if isinstance(pre, dict) else []
+        if not errs and isinstance(proposal, dict):
+            errs = list(proposal.get("errors") or [])
+        parts = [f"**I can’t propose this action yet (validation failed):** {summary}"]
+        if errs:
+            parts.append("**Issues:**\n" + "\n".join([f"- {e}" for e in errs[:8]]))
+        if warns:
+            parts.append("**Notes:**\n" + "\n".join([f"- {w}" for w in warns[:6]]))
+        if policy:
+            parts.append(f"**Policy:** {policy.get('effect','')} {( '(' + str(policy.get('matched_rule_id')) + ')' ) if policy.get('matched_rule_id') else ''} {('- ' + str(policy.get('reason'))) if policy.get('reason') else ''}".strip())
+        parts.append(
+            "Please correct the request (ensure the item/reservation/IDs exist and are valid) and I’ll re-check."
+        )
+        ans = "\n\n".join(parts)
         return {
-            "ok": ok,
+            "ok": False,
             "intent": action_type,
             "tools_used": ["validate_entities"],
-            "data": {"proposal": proposal, "prechecks": pre, "args": args},
+            "data": {"proposal": proposal, "prechecks": pre, "args": args, "policy": policy},
             "answer": ans,
-            "proposed_action": proposal if ok else None,
+            "proposed_action": None,
             "source": "action_proposal",
-            "needs_confirmation": ok,
+            "needs_confirmation": False,
+            "policy": policy,
         }
     except Exception as e:
         logger.exception("assistant._maybe_propose_action failed")

@@ -74,6 +74,22 @@
       </form>
       {% endfor %}
     </div>
+    {% if playbooks %}
+    <details style="margin-top:14px">
+      <summary><strong>Playbooks</strong> <span class="muted">({{ playbooks|length }})</span></summary>
+      <div class="muted" style="font-size:12px;margin:6px 0">On-demand task guides. Sensitive actions still require explicit confirmation.</div>
+      <div style="max-height:260px;overflow:auto;font-size:13px">
+        {% for pb in playbooks %}
+        <div style="padding:6px 0;border-bottom:1px solid var(--border,#eee)">
+          <div><strong>{{ pb.title }}</strong> <span class="muted" style="font-size:11px">{{ pb.id }}</span></div>
+          {% if pb.description %}<div class="muted" style="font-size:12px">{{ pb.description }}</div>{% endif %}
+          {% if pb.steps %}<div class="muted" style="font-size:12px">Steps: {{ pb.steps|length }} · Routes: {{ (pb.routes or [])|join(', ') }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <div style="margin-top:6px"><a class="button-like ghost" href="/assistant/playbooks" target="_blank">Playbooks JSON</a></div>
+    </details>
+    {% endif %}
     {% endif %}
   </aside>
 </div>
@@ -103,6 +119,7 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
         <button type="button" id="train-estimate-btn">Estimate time</button>
         <button type="button" class="warn" id="train-start-btn">Start / Prepare</button>
+        <button type="button" class="ghost" id="train-build-dataset-btn">Build sanitized dataset</button>
       </div>
       <div id="train-result" class="muted" style="margin-top:10px;font-size:13px"></div>
     </div>
@@ -142,6 +159,28 @@
       </tbody>
     </table>
   </div>
+
+  <h4 style="margin-top:14px">Sanitized datasets (versioned)</h4>
+  <div class="muted" style="font-size:12px;margin-bottom:6px">Built on explicit operator action. PII/secrets redacted; no silent uploads. JSONL + manifest stored in <code>data/datasets/processed</code>.</div>
+  <div style="overflow:auto">
+    <table class="table" style="width:100%;font-size:13px">
+      <thead><tr><th>ID</th><th>Created</th><th>Records</th><th>Size</th><th>Fingerprint</th><th>Manifest</th></tr></thead>
+      <tbody>
+        {% for d in training_datasets or [] %}
+        <tr>
+          <td><code style="font-size:11px">{{ d.id }}</code></td>
+          <td>{{ d.created_at or '' }}</td>
+          <td>{{ d.record_count or '' }}</td>
+          <td>{{ ((d.size_bytes or d.bytes or 0) / 1024)|round(1) }} KB</td>
+          <td><code style="font-size:11px">{{ (d.fingerprint or d.sha256 or '')[:12] }}</code></td>
+          <td><a href="/assistant/training/datasets/{{ d.id }}" target="_blank">JSON</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="muted">No sanitized datasets built yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <script>
@@ -168,6 +207,7 @@
     if(est.notes){ html += '<div class="muted">'+est.notes+'</div>'; }
     if(est.fingerprint){ html += '<div class="muted">Fingerprint: <code>'+String(est.fingerprint).slice(0,12)+'</code></div>'; }
     if(res.run){ html += '<div><strong>Run status:</strong> '+(res.run.status||'')+' <code>'+ (res.run.id||'') +'</code></div>'; if(res.run.next_steps){ html += '<ul>'+res.run.next_steps.map(s=>'<li>'+s+'</li>').join('')+'</ul>'; } }
+    if(res.dataset){ const d=res.dataset; html += '<div><strong>Dataset:</strong> <code>'+String(d.id||'')+'</code> · '+(d.record_count||0)+' records · '+Math.round(((d.size_bytes||d.bytes||0)/1024))+' KB</div>'; html += '<div class="muted">Fingerprint: <code>'+String(d.fingerprint||d.sha256||'').slice(0,12)+'</code> · '+(d.redaction_note||'PII/secrets redacted')+'</div>'; }
     el.innerHTML = html || '<pre>'+JSON.stringify(res,null,2)+'</pre>';
   }
   document.getElementById('train-estimate-btn')?.addEventListener('click', async ()=>{
@@ -180,6 +220,11 @@
     renderResult({notes:'Starting...'});
     const body = {csrf, backend: document.getElementById('train-backend').value, model: document.getElementById('train-model').value, sources: selectedSources()};
     try{ const res = await postJson('/assistant/training/start', body); renderResult(res); if(res.ok) setTimeout(()=>location.reload(), 1200); }catch(e){ renderResult({error:String(e)}); }
+  });
+  document.getElementById('train-build-dataset-btn')?.addEventListener('click', async ()=>{
+    if(!confirm('Build a versioned sanitized dataset package now?')) return;
+    renderResult({notes:'Building sanitized dataset...'});
+    try{ const res = await postJson('/assistant/training/build-dataset', {csrf}); renderResult(res); if(res.ok) setTimeout(()=>location.reload(), 1200); }catch(e){ renderResult({error:String(e)}); }
   });
 })();
 </script>

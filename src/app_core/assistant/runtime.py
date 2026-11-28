@@ -30,6 +30,7 @@ def _pkg():
 
 def _llm_config():
     """Local-only config. No external endpoints or OpenAI API calls."""
+    smart_enabled = False
     bundle_id = "spms_default"
     bundle_name = "SPMS Default"
     try:
@@ -41,8 +42,14 @@ def _llm_config():
     except Exception:
         b = None
     try:
+        smart_enabled = str(services.get_setting("assistant_smart_enabled", "false")).lower() == "true"
         provider = (services.get_setting("assistant_provider", "auto") or "auto").strip().lower()
         response_mode = (services.get_setting("assistant_response_mode", "talking") or "talking").strip().lower()
+        if not smart_enabled:
+            # Smart OFF: deterministic/template behavior only (no LLM model calls)
+            provider = "deterministic_only"
+            if response_mode == "full_llm":
+                response_mode = "talking"
         model_path = (
             services.get_setting("assistant_local_model_path", "")
             or os.environ.get("ASSISTANT_LOCAL_MODEL_PATH", "")
@@ -61,6 +68,7 @@ def _llm_config():
                     break
         n_ctx = int(services.get_setting("assistant_local_n_ctx", "2048") or 2048)
     except Exception:
+        smart_enabled = False
         provider, response_mode, model_path, n_ctx = "auto", "talking", "", 2048
     # normalize: anything "openai"/external -> treated as local/auto (no external)
     if provider in ("openai", "openai_compatible", "external"):
@@ -81,7 +89,8 @@ def _llm_config():
         "model_path": model_path,
         "n_ctx": n_ctx,
         "local_available": local_available,
-        "enabled": enabled,
+        "enabled": enabled and smart_enabled,
+        "smart_enabled": smart_enabled,
         "external": False,
         "bundle_id": bundle_id,
         "bundle_name": bundle_name,
@@ -561,7 +570,48 @@ def chat(message: str, history: list[dict] | None = None, ui_context: dict | Non
     slots = {**slots, **(cls.get("slots") or {})}
     strong = bool(slots.get("reservation_id") or slots.get("guest_id") or confidence >= 0.85)
 
-    if intent == "compound_multi_intent":
+    # Structured session memory (V2) - best effort
+    mem_ctx = {}
+    try:
+        from . import memory as _mem
+        mem_ctx = _mem.load_for_chat(ui_context=ui_context, history=history)
+        if mem_ctx.get("slots"):
+            for k, v in mem_ctx["slots"].items():
+                slots.setdefault(k, v)
+    except Exception:
+        mem_ctx = {}
+
+    # Policy gate (V1) - deterministic allow/ask/deny
+    policy_decision = {"effect": "allow", "reason": "", "matched_rule_id": "", "sensitive": False, "requires_confirmation": False}
+    try:
+        from . import policy as policy_engine
+        policy_decision = policy_engine.evaluate(
+            message=message, intent=intent, action_type=str((ui_context or {}).get("action_type") or ""),
+            actor_role=str((ui_context or {}).get("actor_role") or "manager"),
+            unlocked=bool((ui_context or {}).get("unlocked")),
+            session_id=str((ui_context or {}).get("session_id") or ""),
+            context={"source": "chat"},
+        )
+        policy_engine.log_decision(
+            policy_decision, session_id=str((ui_context or {}).get("session_id") or ""),
+            actor=str((ui_context or {}).get("actor") or ""), actor_user_id=(ui_context or {}).get("actor_user_id"),
+            actor_role=str((ui_context or {}).get("actor_role") or ""), message=message, intent=intent,
+            action_type=str((ui_context or {}).get("action_type") or ""), args=slots, outcome="evaluated",
+        )
+    except Exception:
+        policy_decision = {"effect": "allow", "reason": "", "matched_rule_id": "", "sensitive": False, "requires_confirmation": False}
+
+    if policy_decision.get("effect") == "deny":
+        core = {
+            "ok": False,
+            "intent": intent,
+            "answer": f"I can’t help with that request. {policy_decision.get('reason') or 'Denied by assistant policy.'}",
+            "data": {"policy": policy_decision},
+            "tools_used": [],
+            "source": "policy_deny",
+            "needs_clarification": False,
+        }
+    elif intent == "compound_multi_intent":
         core = _execute_compound(message, slots, ui_context=ui_context)
     elif (
         confidence < 0.45
@@ -592,6 +642,13 @@ def chat(message: str, history: list[dict] | None = None, ui_context: dict | Non
     if not core.get("proposed_action") and not core.get("clear_pending_action") and _get_pending_from_ui(ui_context):
         core.setdefault("pending_action", _get_pending_from_ui(ui_context))
     core.setdefault("proposed_action", None)
+    core["policy"] = policy_decision
+    core["smart_enabled"] = bool(config.get("smart_enabled"))
+    try:
+        from . import memory as _mem
+        _mem.update_after_chat(message=message, result=core, ui_context=ui_context, history=history)
+    except Exception:
+        pass
 
     # Local "talking" polish (deterministic always, optional local GGUF) — no external calls
     if (

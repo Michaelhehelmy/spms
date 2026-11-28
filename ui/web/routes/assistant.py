@@ -110,10 +110,20 @@ def _normalize_pending_action(proposed: dict[str, Any] | None, ui_context: Any =
     if not isinstance(proposed, dict):
         return None
     action = dict(proposed)
+    # Never normalize/store denied policy results as pending executable actions.
+    pol = action.get("policy") if isinstance(action.get("policy"), dict) else {}
+    if str(action.get("status") or "").lower() == "denied" or str(pol.get("effect") or "").lower() == "deny":
+        return None
     # Ensure proposal shape/id if caller only provided a raw action hint
     if not action.get("id") or not action.get("type"):
         try:
-            action = create_proposal(action)
+            # If this already looks like a proposal result, don't re-create from it.
+            if action.get("action_type") and action.get("prechecks"):
+                action = dict(action)
+                action.setdefault("type", action.get("action_type"))
+                action.setdefault("id", action.get("action_id") or "")
+            else:
+                action = create_proposal(action)
         except Exception:
             # best-effort fallback normalization
             action = dict(action)
@@ -134,6 +144,11 @@ def _normalize_pending_action(proposed: dict[str, Any] | None, ui_context: Any =
     action.setdefault(
         "summary", action.get("title") or action.get("description") or action.get("type") or "Proposed action"
     )
+    pol2 = action.get("policy") if isinstance(action.get("policy"), dict) else {}
+    action["requires_confirmation"] = bool(pol2.get("requires_confirmation", action.get("requires_confirmation", True)))
+    if pol2.get("effect") == "deny":
+        # should not happen due to earlier guard, but defense-in-depth
+        return None
     return action
 
 
@@ -211,6 +226,12 @@ def _history(request: Request):
 @router.get("/assistant")
 def assistant_page(request: Request):
     pending = get_pending_action(request)
+    playbooks_ctx = []
+    try:
+        from app_core.assistant import playbooks as assistant_playbooks
+        playbooks_ctx = assistant_playbooks.list_playbooks()[:20]
+    except Exception:
+        playbooks_ctx = []
     ctx = {
         "title": "Manager Assistant",
         "history": _history(request)[-20:],
@@ -219,6 +240,7 @@ def assistant_page(request: Request):
         "llm": assistant.get_llm_config(),
         "intents": assistant.INTENT_LABELS,
         "show_assistant_debug": _show_assistant_debug(),
+        "playbooks": playbooks_ctx,
         **_training_context(request),
     }
     return render(request, "assistant/index.html", ctx)
@@ -276,6 +298,25 @@ async def assistant_ask(request: Request):
         chat_ctx = dict(ui_context or {})
         if pending_action and "pending_action" not in chat_ctx:
             chat_ctx["pending_action"] = pending_action
+        # V1/V2 context for policy/memory
+        try:
+            sess = deps.get_session(request)
+            if sess.get("assistant_session_id"):
+                chat_ctx.setdefault("session_id", sess.get("assistant_session_id"))
+            else:
+                import secrets as _sec
+                sess["assistant_session_id"] = _sec.token_urlsafe(16)
+                chat_ctx.setdefault("session_id", sess.get("assistant_session_id"))
+            chat_ctx.setdefault("unlocked", bool(deps.is_unlocked(request)))
+            try:
+                actor = deps.current_actor(request)
+                chat_ctx.setdefault("actor", actor.get("actor"))
+                chat_ctx.setdefault("actor_user_id", actor.get("actor_user_id"))
+                chat_ctx.setdefault("actor_role", actor.get("actor_role"))
+            except Exception:
+                pass
+        except Exception:
+            pass
         try:
             result = assistant.chat(message, history=history_for_chat, ui_context=chat_ctx)
         except TypeError:
@@ -353,10 +394,21 @@ async def assistant_ask(request: Request):
 
         proposed = result.get("proposed_action")
         if proposed:
-            pending_action = set_pending_action(
-                request, proposed if isinstance(proposed, dict) else {"raw": proposed}, ui_context=ui_context
+            pol = proposed.get("policy") if isinstance(proposed, dict) else None
+            denied = isinstance(proposed, dict) and (
+                str(proposed.get("status") or "").lower() == "denied"
+                or (isinstance(pol, dict) and str(pol.get("effect") or "").lower() == "deny")
             )
-            result["proposed_action"] = pending_action
+            if denied:
+                # Never persist denied actions as pending confirmable actions.
+                result["proposed_action"] = None
+                result["policy"] = pol if isinstance(pol, dict) else result.get("policy")
+                pending_action = get_pending_action(request)
+            else:
+                pending_action = set_pending_action(
+                    request, proposed if isinstance(proposed, dict) else {"raw": proposed}, ui_context=ui_context
+                )
+                result["proposed_action"] = pending_action
         else:
             # keep any existing pending action unless explicitly replaced; ask flow doesn't clear by itself
             pending_action = get_pending_action(request)
@@ -417,6 +469,11 @@ async def assistant_ask(request: Request):
             "slots": safe_slots,
             "ui_actions": safe_ui_actions,
         }
+        pol = result.get("policy")
+        if isinstance(pol, dict):
+            payload["policy"] = _json_safe_value(pol)
+        if "needs_confirmation" in result:
+            payload["needs_confirmation"] = bool(result.get("needs_confirmation"))
         pa = result.get("proposed_action") or pending_action
         if isinstance(pa, dict):
             safe_pa = _json_safe_value(pa)
@@ -601,6 +658,31 @@ async def assistant_action_confirm(request: Request):
             request, partial_template="assistant/_messages.html", partial_context=ctx, redirect_url="/assistant"
         )
 
+    pol = pending.get("policy") if isinstance(pending.get("policy"), dict) else {}
+    if str(pol.get("effect") or "").lower() == "deny":
+        msg = f"Action denied by policy: {pol.get('reason') or 'denied'}"
+        if want_json:
+            return {
+                "ok": False,
+                "error": msg,
+                "answer": msg,
+                "policy": pol,
+                "pending_action": pending,
+                "ui_actions": [],
+            }
+        deps.add_flash(request, msg, "error")
+        ctx = {
+            "request": request,
+            "history": _history(request)[-20:],
+            "pending_action": pending,
+            "csrf_token": deps.csrf_token(request),
+            "intents": assistant.INTENT_LABELS,
+            "show_assistant_debug": _show_assistant_debug(),
+        }
+        return htmx_partial_or_redirect(
+            request, partial_template="assistant/_messages.html", partial_context=ctx, redirect_url="/assistant"
+        )
+
     # Best-effort proof resolution: prefer explicit password, else session sentinel when unlocked.
     proof = fields.get("proof") or fields.get("proof_password") or None
     if proof is None and form is not None:
@@ -657,9 +739,11 @@ async def assistant_action_confirm(request: Request):
     deps.get_session(request)["assistant_history"] = hist[-40:]
 
     if want_json:
+        exec_policy = (exec_result or {}).get("policy") if isinstance((exec_result or {}).get("policy"), dict) else None
         safe_exec = {
             "ok": bool((exec_result or {}).get("ok", False)),
             "answer": str((exec_result or {}).get("answer") or answer),
+            "status": str((exec_result or {}).get("status") or ("ok" if ok else "failed")),
             "tools_used": [
                 str(x) for x in ((exec_result or {}).get("tools_used") or []) if isinstance(x, (str, int, float))
             ],
@@ -667,9 +751,11 @@ async def assistant_action_confirm(request: Request):
             if isinstance((exec_result or {}).get("ui_actions"), list)
             else [],
         }
+        if exec_policy:
+            safe_exec["policy"] = _json_safe_value(exec_policy)
         if not ok and (exec_result or {}).get("error"):
             safe_exec["error"] = "internal_error"
-        return {
+        resp = {
             "ok": ok,
             "answer": str(answer),
             "result": safe_exec,
@@ -677,6 +763,9 @@ async def assistant_action_confirm(request: Request):
             "pending_action": pending_after if isinstance(pending_after, dict) else None,
             "proposed_action": None,
         }
+        if exec_policy:
+            resp["policy"] = _json_safe_value(exec_policy)
+        return resp
 
     shown = _history(request)[-20:]
     animate_index = len(shown) - 1 if shown else None
@@ -829,9 +918,15 @@ def _training_context(request: Request) -> dict[str, Any]:
         }
     except Exception:
         training_share = {}
+    training_datasets = []
+    try:
+        training_datasets = assistant_training.list_sanitized_datasets(limit=10)
+    except Exception:
+        training_datasets = []
     return {
         "training_sources": sources,
         "training_runs": runs,
+        "training_datasets": training_datasets,
         "training_backends": [
             {"id": "sklearn", "label": "Intent classifier (sklearn, fast, on-device)"},
             {"id": "setfit", "label": "Intent classifier (SetFit, heavier)"},
@@ -919,3 +1014,446 @@ async def assistant_training_start(request: Request):
     else:
         deps.add_flash(request, res.get("message") or res.get("error") or "Training failed", "error")
     return flash_redirect(request, "/assistant")
+
+
+# ---- Smart Agent V1/V2/V3 endpoints (issue #77) ----
+
+@router.get("/assistant/smart/status")
+async def assistant_smart_status(request: Request):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import model_ops, policy, business_map, playbooks
+        cat = model_ops.get_catalog()
+        return _json_safe_value({
+            "ok": True,
+            "smart_enabled": str(services.get_setting("assistant_smart_enabled", "false")).lower() == "true",
+            "active_model": str(services.get_setting("assistant_smart_model", "") or ""),
+            "catalog": cat,
+            "policy_audit_enabled": str(services.get_setting("assistant_policy_audit_enabled", "true")).lower() == "true",
+            "memory_enabled": str(services.get_setting("assistant_session_memory_enabled", "true")).lower() == "true",
+            "playbooks_enabled": str(services.get_setting("assistant_playbooks_enabled", "true")).lower() == "true",
+            "eval_gate_enabled": str(services.get_setting("assistant_eval_gate_enabled", "true")).lower() == "true",
+            "business_map": business_map.get_map(),
+            "playbooks": playbooks.list_playbooks(),
+        })
+    except Exception as e:
+        logger.exception("assistant_smart_status_failed")
+        return Response(content=json.dumps({"ok": False, "error": "status_failed"}), media_type="application/json", status_code=500)
+
+
+@router.get("/assistant/playbooks")
+async def assistant_playbooks(request: Request, q: str = "", intent: str = "", relevant: bool = False, limit: int = 10):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import playbooks
+        lim = max(1, min(int(limit or 10), 50))
+        if relevant or (q or intent):
+            items = playbooks.find_relevant(message=q, intent=intent, limit=lim)
+        else:
+            items = playbooks.list_playbooks()[:lim]
+        return _json_safe_value({"ok": True, "playbooks": items, "count": len(items)})
+    except Exception:
+        logger.exception("assistant_playbooks_failed")
+        return Response(content=json.dumps({"ok": False, "error": "playbooks_failed"}), media_type="application/json", status_code=500)
+
+
+@router.get("/assistant/policy/audit")
+async def assistant_policy_audit(request: Request, limit: int = 100):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import policy
+        return _json_safe_value({"ok": True, "items": policy.list_policy_audit(limit=limit)})
+    except Exception:
+        logger.exception("assistant_policy_audit_failed")
+        return Response(content=json.dumps({"ok": False, "error": "audit_failed"}), media_type="application/json", status_code=500)
+
+
+@router.get("/assistant/models/catalog")
+async def assistant_models_catalog(request: Request):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import model_ops
+        return _json_safe_value({"ok": True, "catalog": model_ops.get_catalog(), "jobs": model_ops.list_jobs(limit=20)})
+    except Exception:
+        logger.exception("assistant_models_catalog_failed")
+        return Response(content=json.dumps({"ok": False, "error": "catalog_failed"}), media_type="application/json", status_code=500)
+
+
+@router.post("/assistant/models/select")
+async def assistant_models_select(request: Request):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    form = await request.form()
+    try:
+        deps.verify_csrf(request, str(form.get("csrf") or request.headers.get("X-CSRF-Token") or ""))
+    except Exception:
+        return Response(content=json.dumps({"ok": False, "error": "csrf"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import model_ops
+        actor = deps.current_actor(request).get("actor") if hasattr(deps, "current_actor") else "manager"
+        res = model_ops.select_model(str(form.get("model_id") or ""), actor=str(actor or "manager"))
+        return _json_safe_value(res)
+    except Exception:
+        logger.exception("assistant_models_select_failed")
+        return Response(content=json.dumps({"ok": False, "error": "select_failed"}), media_type="application/json", status_code=500)
+
+
+@router.post("/assistant/models/eval")
+async def assistant_models_eval(request: Request):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    form = await request.form()
+    try:
+        deps.verify_csrf(request, str(form.get("csrf") or request.headers.get("X-CSRF-Token") or ""))
+    except Exception:
+        return Response(content=json.dumps({"ok": False, "error": "csrf"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import model_ops
+        actor = deps.current_actor(request).get("actor") if hasattr(deps, "current_actor") else "manager"
+        res = model_ops.run_eval(str(form.get("model_id") or ""), dataset_ref=str(form.get("dataset_ref") or ""), actor=str(actor or "manager"))
+        return _json_safe_value({"ok": True, "eval": res})
+    except Exception:
+        logger.exception("assistant_models_eval_failed")
+        return Response(content=json.dumps({"ok": False, "error": "eval_failed"}), media_type="application/json", status_code=500)
+
+
+@router.post("/assistant/models/rollback")
+async def assistant_models_rollback(request: Request):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    form = await request.form()
+    try:
+        deps.verify_csrf(request, str(form.get("csrf") or request.headers.get("X-CSRF-Token") or ""))
+    except Exception:
+        return Response(content=json.dumps({"ok": False, "error": "csrf"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import model_ops
+        actor = deps.current_actor(request).get("actor") if hasattr(deps, "current_actor") else "manager"
+        return _json_safe_value(model_ops.rollback_model(actor=str(actor or "manager")))
+    except Exception:
+        logger.exception("assistant_models_rollback_failed")
+        return Response(content=json.dumps({"ok": False, "error": "rollback_failed"}), media_type="application/json", status_code=500)
+
+
+@router.get("/assistant/policy/effective")
+async def assistant_policy_effective(request: Request):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import policy
+        return _json_safe_value(policy.effective_policy_summary())
+    except Exception:
+        logger.exception("assistant_policy_effective_failed")
+        return Response(content=json.dumps({"ok": False, "error": "policy_failed"}), media_type="application/json", status_code=500)
+
+
+@router.post("/assistant/policy/validate")
+async def assistant_policy_validate(request: Request):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    form = await request.form()
+    try:
+        deps.verify_csrf(request, str(form.get("csrf") or request.headers.get("X-CSRF-Token") or ""))
+    except Exception:
+        return Response(content=json.dumps({"ok": False, "error": "csrf"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import policy
+        res = policy.validate_policy_config(
+            action_policy_json=str(form.get("assistant_action_policy_json") if form.get("assistant_action_policy_json") is not None else services.get_setting("assistant_action_policy_json", "[]")),
+            property_rules=str(form.get("assistant_property_rules") if form.get("assistant_property_rules") is not None else services.get_setting("assistant_property_rules", "")),
+        )
+        return _json_safe_value(res)
+    except Exception:
+        logger.exception("assistant_policy_validate_failed")
+        return Response(content=json.dumps({"ok": False, "error": "validate_failed"}), media_type="application/json", status_code=500)
+
+
+@router.post("/assistant/models/upsert")
+async def assistant_models_upsert(request: Request):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    form = await request.form()
+    try:
+        deps.verify_csrf(request, str(form.get("csrf") or request.headers.get("X-CSRF-Token") or ""))
+    except Exception:
+        return Response(content=json.dumps({"ok": False, "error": "csrf"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import model_ops
+        actor = deps.current_actor(request).get("actor") if hasattr(deps, "current_actor") else "manager"
+        model = {
+            "id": str(form.get("id") or form.get("model_id") or "").strip(),
+            "name": str(form.get("name") or form.get("id") or "").strip(),
+            "provider": str(form.get("provider") or "local_gguf").strip(),
+            "size": str(form.get("size") or "").strip(),
+            "method": str(form.get("method") or "").strip(),
+            "path": str(form.get("path") or "").strip(),
+            "checksum": str(form.get("checksum") or "").strip(),
+            "enabled": str(form.get("enabled") or "true").lower() == "true",
+        }
+        return _json_safe_value(model_ops.upsert_catalog_model(model, actor=str(actor or "manager")))
+    except Exception:
+        logger.exception("assistant_models_upsert_failed")
+        return Response(content=json.dumps({"ok": False, "error": "upsert_failed"}), media_type="application/json", status_code=500)
+
+
+@router.post("/assistant/models/delete")
+async def assistant_models_delete(request: Request):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    form = await request.form()
+    try:
+        deps.verify_csrf(request, str(form.get("csrf") or request.headers.get("X-CSRF-Token") or ""))
+    except Exception:
+        return Response(content=json.dumps({"ok": False, "error": "csrf"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import model_ops
+        actor = deps.current_actor(request).get("actor") if hasattr(deps, "current_actor") else "manager"
+        return _json_safe_value(model_ops.delete_catalog_model(str(form.get("model_id") or ""), actor=str(actor or "manager"), delete_file=str(form.get("delete_file") or "false").lower()=="true"))
+    except Exception:
+        logger.exception("assistant_models_delete_failed")
+        return Response(content=json.dumps({"ok": False, "error": "delete_failed"}), media_type="application/json", status_code=500)
+
+
+@router.post("/assistant/models/verify")
+async def assistant_models_verify(request: Request):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    form = await request.form()
+    try:
+        deps.verify_csrf(request, str(form.get("csrf") or request.headers.get("X-CSRF-Token") or ""))
+    except Exception:
+        return Response(content=json.dumps({"ok": False, "error": "csrf"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import model_ops
+        actor = deps.current_actor(request).get("actor") if hasattr(deps, "current_actor") else "manager"
+        return _json_safe_value(model_ops.verify_catalog_model(str(form.get("model_id") or ""), actor=str(actor or "manager")))
+    except Exception:
+        logger.exception("assistant_models_verify_failed")
+        return Response(content=json.dumps({"ok": False, "error": "verify_failed"}), media_type="application/json", status_code=500)
+
+
+@router.post("/assistant/models/install")
+async def assistant_models_install(request: Request):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    form = await request.form()
+    try:
+        deps.verify_csrf(request, str(form.get("csrf") or request.headers.get("X-CSRF-Token") or ""))
+    except Exception:
+        return Response(content=json.dumps({"ok": False, "error": "csrf"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import model_ops
+        actor = deps.current_actor(request).get("actor") if hasattr(deps, "current_actor") else "manager"
+        model_id = str(form.get("id") or form.get("model_id") or "").strip()
+        url = str(form.get("url") or form.get("source_url") or "").strip()
+        checksum = str(form.get("checksum") or "").strip()
+        path = str(form.get("path") or "").strip()
+        name = str(form.get("name") or model_id).strip()
+        provider = str(form.get("provider") or "local_gguf").strip()
+        method = str(form.get("method") or "gguf/local").strip()
+        size = str(form.get("size") or "").strip()
+        filename = str(form.get("filename") or "").strip()
+        if url:
+            res = model_ops.start_model_download_job(
+                model_id=model_id,
+                url=url,
+                checksum=checksum,
+                actor=str(actor or "manager"),
+                filename=filename,
+                name=name,
+                provider=provider,
+                method=method,
+                size=size,
+            )
+            return _json_safe_value(res)
+        # register by local/approved path
+        res = model_ops.upsert_catalog_model(
+            {
+                "id": model_id,
+                "name": name,
+                "provider": provider,
+                "method": method,
+                "size": size,
+                "path": path,
+                "checksum": checksum,
+                "source_url": "",
+                "enabled": str(form.get("enabled") or "true").lower() == "true",
+            },
+            actor=str(actor or "manager"),
+        )
+        if res.get("ok") and path:
+            # best-effort verification for explicit operator action
+            try:
+                v = model_ops.verify_catalog_model(model_id, actor=str(actor or "manager"))
+                res["verification"] = v
+            except Exception:
+                pass
+        return _json_safe_value(res)
+    except Exception:
+        logger.exception("assistant_models_install_failed")
+        return Response(content=json.dumps({"ok": False, "error": "install_failed"}), media_type="application/json", status_code=500)
+
+
+@router.post("/assistant/models/pull-bundle")
+async def assistant_models_pull_bundle(request: Request):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    form = await request.form()
+    try:
+        deps.verify_csrf(request, str(form.get("csrf") or request.headers.get("X-CSRF-Token") or ""))
+    except Exception:
+        return Response(content=json.dumps({"ok": False, "error": "csrf"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import model_pull, bundles
+        bid = bundles.get_active_bundle_id()
+        res = model_pull.pull_bundle_on_startup(bundle_id=bid)
+        return _json_safe_value({"ok": True, "bundle_id": bid, "result": res})
+    except Exception:
+        logger.exception("assistant_models_pull_bundle_failed")
+        return Response(content=json.dumps({"ok": False, "error": "pull_failed"}), media_type="application/json", status_code=500)
+
+
+@router.post("/assistant/training/build-dataset")
+async def assistant_training_build_dataset(request: Request):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    form = await request.form()
+    try:
+        deps.verify_csrf(request, str(form.get("csrf") or request.headers.get("X-CSRF-Token") or ""))
+    except Exception:
+        return Response(content=json.dumps({"ok": False, "error": "csrf"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import training as at
+        actor = "assistant_training"
+        try:
+            actor = str((deps.current_actor(request) or {}).get("actor") or actor) if hasattr(deps, "current_actor") else actor
+        except Exception:
+            pass
+        res = at.build_sanitized_dataset(actor=actor)
+        return _json_safe_value(res)
+    except Exception:
+        logger.exception("assistant_training_build_dataset_failed")
+        return Response(content=json.dumps({"ok": False, "error": "dataset_build_failed"}), media_type="application/json", status_code=500)
+
+
+@router.get("/assistant/training/datasets")
+async def assistant_training_datasets(request: Request, limit: int = 50):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import training as at
+        items = at.list_sanitized_datasets(limit=limit)
+        return _json_safe_value({"ok": True, "datasets": items, "count": len(items)})
+    except Exception:
+        logger.exception("assistant_training_datasets_failed")
+        return Response(content=json.dumps({"ok": False, "error": "datasets_failed"}), media_type="application/json", status_code=500)
+
+
+@router.get("/assistant/training/datasets/{dataset_id}")
+async def assistant_training_dataset_get(request: Request, dataset_id: str):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import training as at
+        ds = at.get_sanitized_dataset(dataset_id)
+        if not ds:
+            return Response(content=json.dumps({"ok": False, "error": "not_found"}), media_type="application/json", status_code=404)
+        return _json_safe_value({"ok": True, "dataset": ds})
+    except Exception:
+        logger.exception("assistant_training_dataset_get_failed")
+        return Response(content=json.dumps({"ok": False, "error": "dataset_get_failed"}), media_type="application/json", status_code=500)
+
+
+@router.get("/assistant/models/jobs")
+async def assistant_models_jobs(request: Request, limit: int = 50):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import model_ops
+        return _json_safe_value({"ok": True, "jobs": model_ops.list_jobs(limit=limit)})
+    except Exception:
+        logger.exception("assistant_models_jobs_failed")
+        return Response(content=json.dumps({"ok": False, "error": "jobs_failed"}), media_type="application/json", status_code=500)
+
+
+@router.get("/assistant/models/jobs/{job_id}")
+async def assistant_models_job_get(request: Request, job_id: int):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import model_ops
+        job = model_ops.get_job(int(job_id))
+        if not job:
+            return Response(content=json.dumps({"ok": False, "error": "not_found"}), media_type="application/json", status_code=404)
+        return _json_safe_value({"ok": True, "job": job})
+    except Exception:
+        logger.exception("assistant_models_job_get_failed")
+        return Response(content=json.dumps({"ok": False, "error": "job_get_failed"}), media_type="application/json", status_code=500)
+
+
+@router.post("/assistant/models/jobs/{job_id}/cancel")
+async def assistant_models_job_cancel(request: Request, job_id: int):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    form = await request.form()
+    try:
+        deps.verify_csrf(request, str(form.get("csrf") or request.headers.get("X-CSRF-Token") or ""))
+    except Exception:
+        return Response(content=json.dumps({"ok": False, "error": "csrf"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import model_ops
+        actor = "manager"
+        try:
+            actor = str((deps.current_actor(request) or {}).get("actor") or actor) if hasattr(deps, "current_actor") else actor
+        except Exception:
+            pass
+        res = model_ops.cancel_job(int(job_id), actor=actor, reason=str(form.get("reason") or ""))
+        return _json_safe_value(res)
+    except Exception:
+        logger.exception("assistant_models_job_cancel_failed")
+        return Response(content=json.dumps({"ok": False, "error": "job_cancel_failed"}), media_type="application/json", status_code=500)
+
+
+@router.post("/assistant/models/jobs/{job_id}/fail")
+async def assistant_models_job_fail(request: Request, job_id: int):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    form = await request.form()
+    try:
+        deps.verify_csrf(request, str(form.get("csrf") or request.headers.get("X-CSRF-Token") or ""))
+    except Exception:
+        return Response(content=json.dumps({"ok": False, "error": "csrf"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import model_ops
+        actor = "manager"
+        try:
+            actor = str((deps.current_actor(request) or {}).get("actor") or actor) if hasattr(deps, "current_actor") else actor
+        except Exception:
+            pass
+        res = model_ops.mark_job_failed(int(job_id), actor=actor, reason=str(form.get("reason") or ""))
+        return _json_safe_value(res)
+    except Exception:
+        logger.exception("assistant_models_job_fail_failed")
+        return Response(content=json.dumps({"ok": False, "error": "job_fail_failed"}), media_type="application/json", status_code=500)
+
+
+@router.post("/assistant/models/pull-bundle-job")
+async def assistant_models_pull_bundle_job(request: Request):
+    if not _assistant_allowed(request):
+        return Response(content=json.dumps({"ok": False, "error": "unlock_required"}), media_type="application/json", status_code=403)
+    form = await request.form()
+    try:
+        deps.verify_csrf(request, str(form.get("csrf") or request.headers.get("X-CSRF-Token") or ""))
+    except Exception:
+        return Response(content=json.dumps({"ok": False, "error": "csrf"}), media_type="application/json", status_code=403)
+    try:
+        from app_core.assistant import model_ops
+        actor = deps.current_actor(request).get("actor") if hasattr(deps, "current_actor") else "manager"
+        return _json_safe_value(model_ops.start_bundle_pull_job(actor=str(actor or "manager")))
+    except Exception:
+        logger.exception("assistant_models_pull_bundle_job_failed")
+        return Response(content=json.dumps({"ok": False, "error": "pull_job_failed"}), media_type="application/json", status_code=500)

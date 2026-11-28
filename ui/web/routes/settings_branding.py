@@ -174,6 +174,48 @@ def settings(request: Request, tab: str = "general"):
         active_assistant_bundle = get_active_bundle_id()
     except Exception:
         logger.debug("web.settings: failed to load assistant bundles", exc_info=True)
+    assistant_smart = {}
+    try:
+        from app_core.assistant import model_ops, policy
+        cat = model_ops.get_catalog()
+        eval_gate_enabled = str(services.get_setting("assistant_eval_gate_enabled", "true")).lower() == "true"
+        eval_threshold = float(services.get_setting("assistant_eval_pass_threshold", "1.0") or 1.0)
+        for m in cat:
+            try:
+                ev = model_ops.latest_eval(str(m.get("id") or ""))
+            except Exception:
+                ev = None
+            m["latest_eval"] = ev
+            if ev:
+                metrics = ev.get("metrics_json") if isinstance(ev.get("metrics_json"), dict) else (ev.get("metrics") or {})
+                pass_rate = float((metrics or {}).get("pass_rate", 0.0) or 0.0)
+                passed = bool(ev.get("passed")) and pass_rate >= eval_threshold
+                m["eval_passed"] = passed
+                m["eval_pass_rate"] = pass_rate
+                m["eval_block_reason"] = "" if passed else ("eval_failed" if not ev.get("passed") else "below_threshold")
+            else:
+                m["eval_passed"] = False
+                m["eval_pass_rate"] = 0.0
+                m["eval_block_reason"] = "no_eval"
+            if str(m.get("id")) == "deterministic-core":
+                m["eval_block_reason"] = ""
+                m["eval_passed"] = True
+            if eval_gate_enabled and str(m.get("id")) != "deterministic-core" and not m.get("eval_passed"):
+                m["selectable"] = False if m.get("installed") else m.get("selectable", False)
+                m["availability_reason"] = f"eval_gate_blocked:{m.get('eval_block_reason') or 'failed'}"
+                if m.get("installed"):
+                    m["status"] = "blocked_by_eval_gate"
+        assistant_smart = {
+            "enabled": str(services.get_setting("assistant_smart_enabled", "false")).lower() == "true",
+            "active_model": str(services.get_setting("assistant_smart_model", "") or ""),
+            "catalog": cat,
+            "jobs": model_ops.list_jobs(limit=10),
+            "policy_audit": policy.list_policy_audit(limit=20),
+            "eval_gate_enabled": eval_gate_enabled,
+            "eval_threshold": eval_threshold,
+        }
+    except Exception:
+        logger.debug("web.settings: failed to load assistant smart status", exc_info=True)
     return render(
         request,
         "settings/index.html",
@@ -194,6 +236,7 @@ def settings(request: Request, tab: str = "general"):
             "training_share": training_share,
             "assistant_bundles": assistant_bundles,
             "active_assistant_bundle": active_assistant_bundle,
+            "assistant_smart": assistant_smart,
             "brand": {
                 "name": services.get_app_display_name(),
                 "tagline": services.get_app_tagline(),

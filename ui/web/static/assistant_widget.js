@@ -66,6 +66,11 @@
 
   function pendingActionHtml(pa){
     if(!pa || !pa.id) return '';
+    var pol = (pa.policy && typeof pa.policy === 'object') ? pa.policy : {};
+    var effect = String(pol.effect || 'ask').toLowerCase();
+    var denied = effect === 'deny';
+    var ask = effect === 'ask';
+    var confRequired = denied ? true : (pol.requires_confirmation !== false);
     var summary = esc(pa.summary || pa.title || pa.type || 'Proposed action');
     var desc = pa.description ? '<div class="pm-aw-meta" style="margin-top:4px;">'+esc(pa.description)+'</div>' : '';
     var warnings = '';
@@ -75,22 +80,37 @@
         warnings = '<div style="margin-top:6px;color:#b45309;font-size:12px;"><strong>Warnings:</strong><ul style="margin:4px 0 0 16px;padding:0;">'+ws.map(function(w){return '<li>'+esc(w)+'</li>';}).join('')+'</ul></div>';
       }
     }
+    var border = denied ? '#fecaca' : (ask ? '#fde68a' : '#bbf7d0');
+    var bg = denied ? '#fef2f2' : (ask ? '#fffbeb' : '#f0fdf4');
+    var fg = denied ? '#b91c1c' : (ask ? '#92400e' : '#166534');
+    var polHtml = '<div style="margin-top:8px;padding:8px;border-radius:6px;font-size:12px;border:1px solid '+border+';background:'+bg+';">'
+      + '<div><strong>Policy decision:</strong> <span style="text-transform:uppercase;font-weight:700;color:'+fg+';">'+esc(effect)+'</span></div>'
+      + (pol.matched_rule_id ? '<div><strong>Matched rule:</strong> '+esc(pol.matched_rule_id)+'</div>' : '')
+      + '<div><strong>Reason:</strong> '+esc(pol.reason || (denied ? 'Action denied by policy.' : 'Explicit confirmation required before execution.'))+'</div>'
+      + '<div><strong>Confirmation required:</strong> '+(confRequired ? 'Yes' : 'No')+'</div>'
+      + '</div>';
+    if(denied){
+      polHtml += '<div style="margin-top:8px;color:#b91c1c;font-size:12px;"><strong>This action is blocked by policy and cannot be executed.</strong> Cancel it and adjust your request or policy settings.</div>';
+    } else if(ask){
+      polHtml += '<div style="margin-top:8px;color:#92400e;font-size:12px;"><strong>Confirmation required.</strong> Review resolved details before confirming.</div>';
+    }
     var details = '';
-    if(pa.resolved){ details += '<details style="margin-top:6px;"><summary>Resolved</summary><pre style="white-space:pre-wrap;font-size:11px;margin:4px 0 0;">'+jsonPre(pa.resolved)+'</pre></details>'; }
+    if(pa.resolved){ details += '<details style="margin-top:6px;" open><summary>Resolved details</summary><pre style="white-space:pre-wrap;font-size:11px;margin:4px 0 0;">'+jsonPre(pa.resolved)+'</pre></details>'; }
     if(pa.prechecks){ details += '<details style="margin-top:6px;"><summary>Prechecks</summary><pre style="white-space:pre-wrap;font-size:11px;margin:4px 0 0;">'+jsonPre(pa.prechecks)+'</pre></details>'; }
     if(pa.preview){ details += '<details style="margin-top:6px;"><summary>Preview</summary><pre style="white-space:pre-wrap;font-size:11px;margin:4px 0 0;">'+jsonPre(pa.preview)+'</pre></details>'; }
     var expiry = pa.expires_at ? '<div class="pm-aw-meta" style="margin-top:6px;">Expires: '+esc(pa.expires_at)+'</div>' : '';
-    var pw = pa.requires_password ? '<div style="margin-top:6px;"><input type="password" class="pm-aw-pw" placeholder="Password/Proof (if required)" style="width:100%;box-sizing:border-box;"/></div>' : '';
+    var pw = (!denied && pa.requires_password) ? '<div style="margin-top:6px;"><input type="password" class="pm-aw-pw" placeholder="Password/Proof (if required)" style="width:100%;box-sizing:border-box;"/></div>' : '';
+    var confirmBtn = denied ? '' : '<button type="button" class="pm-aw-btn pm-aw-confirm" data-action-id="'+esc(pa.id)+'">Confirm</button>';
     return ''
       + '<div class="pm-aw-pending" data-action-id="'+esc(pa.id)+'" style="margin:8px 0;padding:8px;border:1px solid #d9d9d9;border-radius:8px;background:#fff;">'
       +   '<div style="font-weight:600;">Proposed action</div>'
       +   '<div style="margin-top:4px;">'+summary+(pa.type?' <span class="pm-aw-meta">('+esc(pa.type)+')</span>':'')+'</div>'
-      +   desc + warnings + details + expiry + pw
+      +   desc + polHtml + warnings + details + expiry + pw
       +   '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">'
-      +     '<button type="button" class="pm-aw-btn pm-aw-confirm" data-action-id="'+esc(pa.id)+'">Confirm</button>'
+      +     confirmBtn
       +     '<button type="button" class="pm-aw-btn pm-aw-cancel" data-action-id="'+esc(pa.id)+'">Cancel</button>'
       +   '</div>'
-      +   '<div class="pm-aw-meta" style="margin-top:6px;">No mutation runs until you confirm.</div>'
+      +   '<div class="pm-aw-meta" style="margin-top:6px;">'+(denied ? 'Action blocked by policy.' : 'No mutation runs until you explicitly confirm.')+'</div>'
       + '</div>';
   }
 

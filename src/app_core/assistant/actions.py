@@ -174,6 +174,46 @@ def create_proposal(
             "prechecks": prechecks,
         }
 
+    # Policy gate (V1): deterministic allow/ask/deny, last-match-wins; sensitive actions always require confirmation.
+    pol = {"effect": "allow", "reason": "", "matched_rule_id": "", "sensitive": True, "requires_confirmation": True}
+    try:
+        from . import policy as policy_engine
+        pol = policy_engine.evaluate(
+            message=str((ui_context or {}).get("message") or ""),
+            intent=str((ui_context or {}).get("intent") or ""),
+            action_type=action_type,
+            actor_role=str((ui_context or {}).get("actor_role") or "manager"),
+            unlocked=bool((ui_context or {}).get("unlocked")),
+            session_id=str((ui_context or {}).get("session_id") or ""),
+            context={"sensitive": True, "phase": "propose"},
+        )
+        policy_engine.log_decision(
+            pol, session_id=str((ui_context or {}).get("session_id") or ""),
+            actor=str((ui_context or {}).get("actor") or ""),
+            actor_user_id=(ui_context or {}).get("actor_user_id"),
+            actor_role=str((ui_context or {}).get("actor_role") or ""),
+            message=str((ui_context or {}).get("message") or ""),
+            intent=str((ui_context or {}).get("intent") or ""),
+            action_type=action_type,
+            args=normalized_args,
+            outcome="blocked" if pol.get("effect") == "deny" else "proposed",
+        )
+        if pol.get("effect") == "deny":
+            return {
+                "ok": False,
+                "status": "denied",
+                "action_type": action_type,
+                "errors": [f"Policy denied: {pol.get('reason') or 'denied'}"],
+                "warnings": prechecks.get("warnings") or [],
+                "checks": prechecks.get("checks") or [],
+                "resolved": prechecks.get("resolved") or {},
+                "preview": prechecks.get("preview") or {},
+                "prechecks": prechecks,
+                "policy": pol,
+            }
+    except Exception:
+        pass
+
     action_id = _generate_action_id()
     expires_at = av._expires_at(ttl_seconds if ttl_seconds is not None else av.DEFAULT_TTL_SECONDS)
     execute_type = _map_propose_to_execute(action_type)
@@ -193,6 +233,7 @@ def create_proposal(
         "expires_at": expires_at,
         "summary": _summary_for(action_type, prechecks, normalized_args),
         "required_proofs": required_proofs,
+        "requires_confirmation": bool(pol.get("requires_confirmation", True)),
         "proofs_hint": {
             "caller_must_enforce": True,
             "note": "Do not bypass service proofs. Web/session/UI layers must enforce confirmations/proofs before execute.",
@@ -202,6 +243,7 @@ def create_proposal(
         "resolved": prechecks.get("resolved") or {},
         "warnings": prechecks.get("warnings") or [],
         "checks": prechecks.get("checks") or [],
+        "policy": pol,
     }
 
 
@@ -396,11 +438,21 @@ def execute_pending_action(
     pending_action: Mapping[str, Any] | None,
     form_proofs: Mapping[str, Any] | None = None,
     ui_context: Mapping[str, Any] | None = None,
+    **kwargs: Any,
 ) -> dict[str, Any]:
     """Re-validate and execute a pending action proposal via existing services.
 
     Returns: {ok, status, result, affected_ids, message, prechecks}
     """
+    # Backward-compat: routes may pass password/proof/request kwargs
+    if form_proofs is None and isinstance(kwargs.get("proof"), Mapping):
+        form_proofs = kwargs.get("proof")
+    elif form_proofs is None and kwargs.get("proof") is not None:
+        form_proofs = {"confirmed": True, "proof": kwargs.get("proof")}
+    if isinstance(kwargs.get("password"), str) and kwargs.get("password"):
+        fp = dict(form_proofs or {})
+        fp.setdefault("password", kwargs.get("password"))
+        form_proofs = fp
     if not isinstance(pending_action, Mapping):
         return {
             "ok": False,
@@ -476,6 +528,42 @@ def execute_pending_action(
             "errors": prechecks.get("errors") or [],
             "warnings": prechecks.get("warnings") or [],
         }
+
+    # Policy defense-in-depth: deny blocks execution, sensitive actions still require explicit confirmation.
+    try:
+        from . import policy as policy_engine
+        pol = policy_engine.evaluate(
+            message=str(pending_action.get("summary") or ""),
+            intent=str(pending_action.get("intent") or ""),
+            action_type=execute_type,
+            actor_role=str((merged_ctx or {}).get("actor_role") or "manager"),
+            unlocked=bool((merged_ctx or {}).get("unlocked")),
+            session_id=str((merged_ctx or {}).get("session_id") or ""),
+            context={"sensitive": True, "phase": "execute"},
+        )
+        policy_engine.log_decision(
+            pol, session_id=str((merged_ctx or {}).get("session_id") or ""),
+            actor=str((merged_ctx or {}).get("actor") or ""),
+            actor_user_id=(merged_ctx or {}).get("actor_user_id"),
+            actor_role=str((merged_ctx or {}).get("actor_role") or ""),
+            message=str(pending_action.get("summary") or ""),
+            intent=str(pending_action.get("intent") or ""),
+            action_type=execute_type,
+            args=normalized_args,
+            outcome="blocked" if pol.get("effect") == "deny" else "pending_execute",
+        )
+        if pol.get("effect") == "deny":
+            return {
+                "ok": False,
+                "status": "denied",
+                "result": None,
+                "affected_ids": {},
+                "message": f"Action denied by policy: {pol.get('reason') or 'denied'}",
+                "prechecks": prechecks,
+                "policy": pol,
+            }
+    except Exception:
+        pass
 
     resolved = prechecks.get("resolved") or {}
     try:

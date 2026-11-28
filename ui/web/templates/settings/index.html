@@ -236,6 +236,192 @@
   <p class="muted" style="margin-top:8px">You can also set <code>assistant_active_bundle</code> in the settings catalog. Model path overrides still take precedence when set.</p>
 </div>
 
+<div class="panel" style="margin-top:14px"><h3>Assistant Smart Agent (V1/V2/V3)</h3>
+  <p class="muted">Deterministic engine is source of truth. Smart mode is opt-in; when OFF, assistant uses deterministic/template behavior. Sensitive actions always require explicit confirmation.</p>
+  {% set sm = assistant_smart or {} %}
+  <table>
+    <tr><th>Smart enabled</th><td>{% if sm.enabled %}<span class="ok"><strong>ON</strong></span>{% else %}<span class="muted"><strong>OFF (default)</strong></span>{% endif %} <span class="muted">(set <code>assistant_smart_enabled</code> in catalog)</span></td></tr>
+    <tr><th>Active model</th><td><code>{{ sm.active_model or 'deterministic-core' }}</code></td></tr>
+    <tr><th>Eval gate</th><td>{% if sm.eval_gate_enabled %}<span class="ok">enabled</span>{% else %}<span class="warn">disabled</span>{% endif %}{% if sm.eval_threshold is not none %} <span class="muted">(threshold {{ sm.eval_threshold }})</span>{% endif %}</td></tr>
+    <tr><th>Status / errors</th><td>
+      {% set ns = namespace(failed=0, last_err='') %}
+      {% for j in (sm.jobs or []) %}
+        {% if j.status in ['failed','error'] %}
+          {% set ns.failed = ns.failed + 1 %}
+          {% if not ns.last_err %}{% set ns.last_err = j.error or j.status %}{% endif %}
+        {% endif %}
+      {% endfor %}
+      {% if ns.failed %}<span class="err">{{ ns.failed }} recent job failure(s)</span><div class="muted">{{ ns.last_err }}</div>{% else %}<span class="ok">No recent job failures</span>{% endif %}
+    </td></tr>
+  </table>
+  {% if sm.catalog %}
+  <div style="overflow:auto; margin-top:8px">
+    <table>
+      <tr><th>Model</th><th>Provider / Method</th><th>Size</th><th>Installed</th><th>Eval</th><th>Status</th><th>Actions</th></tr>
+      {% for m in sm.catalog %}
+      {% set reason = m.availability_reason or '' %}
+      {% set selectable = m.selectable if m.selectable is not none else true %}
+      <tr>
+        <td>
+          <strong>{{ m.name }}</strong>
+          <div class="muted"><code>{{ m.id }}</code></div>
+          {% if m.checksum %}<div class="muted" title="{{ m.checksum }}">sha256: {{ m.checksum[:12] }}…</div>{% endif %}
+          {% if m.path %}<div class="muted" style="max-width:260px;overflow:hidden;text-overflow:ellipsis" title="{{ m.path }}">{{ m.path }}</div>{% endif %}
+        </td>
+        <td class="muted">{{ m.provider or '—' }}<div>{{ m.method or '—' }}</div></td>
+        <td class="muted">{{ m.size or '—' }}{% if m.size_bytes %}<div>{{ (m.size_bytes / 1048576)|round(2) }} MB</div>{% endif %}</td>
+        <td>{% if m.installed %}<span class="ok">yes</span>{% else %}<span class="muted">no</span>{% endif %}{% if m.exists is defined and m.path %}<div class="muted">{{ 'file present' if m.exists else 'file missing' }}</div>{% endif %}</td>
+        <td style="font-size:12px">
+          {% set ev = m.latest_eval %}
+          {% set checks = (ev.details_json.checks if ev and ev.details_json else []) %}
+          {% if m.eval_passed is sameas true %}<span class="ok">pass</span>{% elif m.eval_passed is sameas false %}<span class="err">fail</span>{% else %}<span class="muted">not run</span>{% endif %}
+          {% if m.eval_pass_rate is not none %}<div class="muted">{{ (m.eval_pass_rate * 100)|round(0) }}%</div>{% endif %}
+          {% if ev %}<div class="muted">{{ ev.created_at }}</div>{% endif %}
+          {% if checks %}
+            <div class="muted">{{ (ev.metrics_json.checks_passed if ev and ev.metrics_json else 0) }}/{{ (ev.metrics_json.checks_total if ev and ev.metrics_json else (checks|length)) }} checks</div>
+            <details><summary class="muted">checks</summary>
+              <ul style="margin:4px 0 0 16px;padding:0">
+              {% for c in checks %}
+                <li>{% if c.passed %}<span class="ok">ok</span>{% else %}<span class="warn">fail</span>{% endif %} {{ c.name }}{% if c.detail %} <span class="muted">- {{ c.detail }}</span>{% endif %}</li>
+              {% endfor %}
+              </ul>
+            </details>
+          {% endif %}
+          {% if sm.eval_gate_enabled and (not m.eval_passed) and m.id != 'deterministic-core' %}
+            <div class="warn">Blocked: {{ m.eval_block_reason or (reason if not selectable else 'eval_gate') }}</div>
+          {% endif %}
+        </td>
+        <td>
+          {% if m.active %}<span class="ok"><strong>active</strong></span>
+          {% elif selectable %}<span class="ok">selectable</span>
+          {% else %}<span class="warn">unavailable</span><div class="muted">{{ reason }}</div>{% endif %}
+        </td>
+        <td>
+          <form method="post" action="/assistant/models/select" class="inline sm-model-form" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"/><input type="hidden" name="model_id" value="{{ m.id }}"/><button type="submit" {% if not selectable %}disabled title="{{ reason or 'Unavailable' }}"{% endif %}>Select</button></form>
+          <form method="post" action="/assistant/models/eval" class="inline sm-model-form" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"/><input type="hidden" name="model_id" value="{{ m.id }}"/><button type="submit" class="ghost">Eval</button></form>
+          <form method="post" action="/assistant/models/verify" class="inline sm-model-form" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"/><input type="hidden" name="model_id" value="{{ m.id }}"/><button type="submit" class="ghost">Verify</button></form>
+          {% if not m.active and m.id != 'deterministic-core' %}
+          <form method="post" action="/assistant/models/delete" class="inline sm-model-form" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"/><input type="hidden" name="model_id" value="{{ m.id }}"/><button type="submit" class="ghost">Delete</button></form>
+          {% endif %}
+          {% if not selectable and reason %}<div class="muted small">Select disabled: {{ reason }}</div>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+  <details style="margin-top:8px"><summary>Install/register model (explicit operator action)</summary>
+    <p class="muted small">Register a local model by approved path, or start a background download from an allowlisted HTTPS URL. Remote downloads require SHA256 checksum. No silent downloads.</p>
+    <form method="post" action="/assistant/models/install" class="sm-model-form" style="display:grid;gap:6px;margin-top:8px">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"/>
+      <label>Model ID <input name="id" required placeholder="my-model-id"/></label>
+      <label>Name <input name="name" placeholder="My Model"/></label>
+      <label>Provider <input name="provider" value="local_gguf"/></label>
+      <label>Method <input name="method" placeholder="gguf/local"/></label>
+      <label>Size <input name="size" placeholder="~250MB"/></label>
+      <label>Local path (approved dir, for register/install) <input name="path" placeholder="/data/.../models/assistant/model.gguf"/></label>
+      <label>Download URL (HTTPS allowlisted, optional) <input name="url" placeholder="https://huggingface.co/..."/></label>
+      <label>Filename (optional, for download) <input name="filename" placeholder="model.gguf"/></label>
+      <label>Checksum SHA256 (required for remote download) <input name="checksum" placeholder="sha256 hex"/></label>
+      <button type="submit">Install/Register model</button>
+    </form>
+  </details>
+  <div id="sm-model-status" class="muted small" style="margin-top:8px"></div>
+  <div style="margin-top:8px">
+    <form method="post" action="/assistant/models/rollback" class="inline sm-model-form" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"/><button type="submit" class="ghost">Rollback model</button></form>
+    <form method="post" action="/assistant/models/pull-bundle" class="inline sm-model-form" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"/><button type="submit" class="ghost">Pull active bundle models</button></form>
+    <form method="post" action="/assistant/models/pull-bundle-job" class="inline sm-model-form" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"/><button type="submit" class="ghost">Pull in background job</button></form>
+    <a class="button-like ghost" href="/assistant/smart/status" target="_blank">Smart status JSON</a>
+    <a class="button-like ghost" href="/assistant/policy/audit" target="_blank">Policy audit JSON</a>
+    <a class="button-like ghost" href="/assistant/models/jobs" target="_blank">Model jobs JSON</a>
+  </div>
+  {% if sm.jobs %}
+  <details style="margin-top:10px" open><summary>Recent model jobs ({{ sm.jobs|length }})</summary>
+    <div style="overflow:auto"><table>
+      <tr><th>ID</th><th>Type</th><th>Status</th><th>Model</th><th>Dataset/Lineage</th><th>Artifacts</th><th>At</th><th>Actions</th></tr>
+    {% for j in sm.jobs[:10] %}
+      {% set jstatus = (j.status or '')|lower %}
+      <tr>
+        <td class="muted"><a href="/assistant/models/jobs/{{ j.id }}" target="_blank">{{ j.id }}</a></td>
+        <td>{{ j.job_type }}</td>
+        <td>{% if jstatus in ['success','completed'] %}<span class="ok">{{ j.status }}</span>{% elif jstatus in ['failed','cancelled','canceled'] %}<span class="warn">{{ j.status }}</span>{% else %}{{ j.status }}{% endif %}{% if j.error %}<div class="muted" style="font-size:11px">{{ j.error[:80] }}</div>{% endif %}</td>
+        <td class="muted">{{ j.model_id or '—' }}</td>
+        <td class="muted" style="font-size:11px"><div>{{ j.dataset_ref or '—' }}</div>{% if j.lineage and j.lineage.base_model %}<div>base: {{ j.lineage.base_model }}</div>{% endif %}{% if j.dataset_fingerprint %}<div>fp: {{ j.dataset_fingerprint[:12] }}</div>{% endif %}</td>
+        <td class="muted" style="font-size:11px">{% for a in (j.artifact_refs or []) %}<div>{{ a }}</div>{% else %}—{% endfor %}</td>
+        <td class="muted">{{ j.updated_at or j.created_at }}</td>
+        <td>
+          {% if jstatus in ['queued','running','prepared','pending'] %}
+          <form method="post" action="/assistant/models/jobs/{{ j.id }}/cancel" class="inline sm-model-form" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"/><button type="submit" class="ghost">Cancel</button></form>
+          <form method="post" action="/assistant/models/jobs/{{ j.id }}/fail" class="inline sm-model-form" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"/><button type="submit" class="ghost">Mark failed</button></form>
+          {% else %}
+          <span class="muted">—</span>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </table></div>
+  </details>
+  {% endif %}
+  {% if sm.policy_audit %}
+  <details style="margin-top:10px"><summary>Recent policy audit ({{ sm.policy_audit|length }})</summary>
+    <div style="overflow:auto"><table><tr><th>At</th><th>Effect</th><th>Intent/Action</th><th>Rule</th><th>Reason</th></tr>
+    {% for a in sm.policy_audit[:20] %}
+      <tr><td class="muted">{{ a.at }}</td><td>{{ a.effect }}</td><td class="muted">{{ a.intent }} {{ a.action_type }}</td><td class="muted">{{ a.matched_rule_id }}</td><td class="muted">{{ a.reason }}</td></tr>
+    {% endfor %}
+    </table></div>
+  </details>
+  {% endif %}
+  <details style="margin-top:10px"><summary>Policy rules editor / preview</summary>
+    <p class="muted small">Deterministic last-match-wins rules. Sensitive actions always require explicit confirmation. Policy cannot override safety/permissions/data integrity.</p>
+    <label>Action policy JSON (<code>assistant_action_policy_json</code>)
+      <textarea id="sm-policy-json" rows="6" style="width:100%;font-family:monospace">{{ values.get("assistant_action_policy_json","[]") }}</textarea>
+    </label>
+    <label>Property rules (<code>assistant_property_rules</code>)
+      <textarea id="sm-property-rules" rows="4" style="width:100%;font-family:monospace">{{ values.get("assistant_property_rules","") }}</textarea>
+    </label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <button type="button" class="ghost" id="sm-policy-validate">Validate / Preview effective policy</button>
+      <a class="button-like ghost" href="/assistant/policy/effective" target="_blank">Effective policy JSON</a>
+    </div>
+    <pre id="sm-policy-preview" class="muted" style="white-space:pre-wrap;margin-top:8px;max-height:220px;overflow:auto"></pre>
+  </details>
+  <p class="muted" style="margin-top:8px">Advanced settings: <code>assistant_smart_enabled</code>, <code>assistant_model_catalog_json</code>, <code>assistant_action_policy_json</code>, <code>assistant_property_rules</code>, <code>assistant_eval_gate_enabled</code>.</p>
+</div>
+<script>
+(function(){
+  var pv=document.getElementById('sm-policy-validate');
+  if(pv){pv.addEventListener('click', async function(){
+    const fd=new FormData();
+    fd.append('csrf','{{ csrf_token }}');
+    fd.append('assistant_action_policy_json', document.getElementById('sm-policy-json').value || '[]');
+    fd.append('assistant_property_rules', document.getElementById('sm-property-rules').value || '');
+    const r=await fetch('/assistant/policy/validate',{method:'POST',body:fd,credentials:'same-origin',headers:{'Accept':'application/json'}});
+    const j=await r.json().catch(()=>({ok:false,error:'bad_json'}));
+    document.getElementById('sm-policy-preview').textContent=JSON.stringify(j,null,2);
+  });}
+  const smStatus = document.getElementById('sm-model-status');
+  function smSetStatus(msg, ok) {
+    if (!smStatus) return;
+    smStatus.textContent = msg || '';
+    smStatus.className = ok ? 'ok small' : (msg ? 'err small' : 'muted small');
+  }
+  document.querySelectorAll('.sm-model-form').forEach(function(f){
+    f.addEventListener('submit', async function(ev){
+      ev.preventDefault();
+      smSetStatus('Working...', true);
+      const fd = new FormData(f);
+      try {
+        const r = await fetch(f.action, {method:'POST', body:fd, credentials:'same-origin', headers:{'Accept':'application/json'}});
+        const j = await r.json().catch(()=>({ok:false,error:'bad_json',message:'Invalid server response'}));
+        const msg = j.ok ? (j.message || 'OK') : ('Error: ' + (j.error || 'failed') + (j.message ? ' — ' + j.message : '') + (j.reason ? ' (' + j.reason + ')' : ''));
+        smSetStatus(msg, !!j.ok);
+        if (j.ok) setTimeout(function(){ location.reload(); }, 600);
+      } catch(e) { smSetStatus('Request failed', false); }
+    });
+  });
+})();
+</script>
+
 <div class="panel" style="margin-top:14px"><h3>Assistant training data sharing (opt-in)</h3>
   <p class="muted">Improve Co-Camp over time by sharing <strong>sanitized training data only</strong> (intent examples, feedback corrections, persona/app/ops/history training data). <strong>No raw guest PII/secrets intended.</strong> Default is <strong>OFF</strong>. When you explicitly opt in, the app can auto-upload monthly when online and package size is above the 1 MB gate.</p>
   <table>

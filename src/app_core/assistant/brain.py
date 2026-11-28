@@ -144,6 +144,7 @@ def build_default_brain(tools: dict[str, dict[str, Any]] | None = None) -> dict[
         "skills": _default_skills(),
         "tools": tool_defs,
         "knowledge": [],
+        "playbooks": [],
     }
 
 
@@ -166,6 +167,8 @@ def validate_brain(data: Any) -> list[str]:
     for key in ("skills", "tools", "knowledge"):
         if not isinstance(data.get(key), list):
             errors.append(f"{key} must be a list")
+    if "playbooks" in data and not isinstance(data.get("playbooks"), list):
+        errors.append("playbooks must be a list")
     if not isinstance(data.get("workflows"), dict):
         errors.append("workflows must be an object")
     if not isinstance(data.get("boundaries", []), list):
@@ -250,6 +253,11 @@ def normalize_brain(data: dict[str, Any], tools: dict[str, dict[str, Any]] | Non
         out["tools"] = merged
     if isinstance(data.get("knowledge"), list):
         out["knowledge"] = [k for k in data["knowledge"] if isinstance(k, dict)]
+    # Optional playbooks manifest (V3). Kept as data-only declarative entries.
+    if isinstance(data.get("playbooks"), list):
+        out["playbooks"] = [p for p in data["playbooks"] if isinstance(p, dict)]
+    elif "playbooks" not in out:
+        out["playbooks"] = []
     # Ensure name fallback
     if not str(out.get("agent", {}).get("name") or "").strip():
         out["agent"]["name"] = "Manager Assistant"

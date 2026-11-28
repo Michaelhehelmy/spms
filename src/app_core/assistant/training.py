@@ -305,6 +305,30 @@ def start_training(source_ids: list[str], backend: str = "sklearn", model: str =
         "status": "running",
         "estimate": est,
     }
+    job_id = None
+    try:
+        from . import model_ops
+        j = model_ops.create_job(
+            "train",
+            model_id=model,
+            dataset_ref=",".join(est.get("source_ids") or []),
+            dataset_fingerprint=est.get("fingerprint", ""),
+            config={
+                "backend": backend,
+                "source_ids": est.get("source_ids") or [],
+                "lineage": {
+                    "base_model": model,
+                    "dataset_ref": ",".join(est.get("source_ids") or []),
+                    "dataset_fingerprint": est.get("fingerprint", ""),
+                    "source_ids": est.get("source_ids") or [],
+                },
+            },
+            actor="assistant_training",
+        )
+        job_id = j.get("id")
+        run["job_id"] = job_id
+    except Exception:
+        pass
     _append_jsonl(RUNS_PATH, {**run, "event": "start"})
 
     try:
@@ -341,4 +365,188 @@ def start_training(source_ids: list[str], backend: str = "sklearn", model: str =
         run.update({"status": "failed", "error": str(e), "finished_at": _now_iso()})
 
     _append_jsonl(RUNS_PATH, {**run, "event": "finish"})
+    try:
+        if job_id:
+            from . import model_ops
+            model_ops.update_job(int(job_id), status=str(run.get("status") or "failed"), metrics_json={"returncode": run.get("returncode"), "backend": backend}, error=str(run.get("error") or ""), artifact_path=str(run.get("artifact_path") or ""))
+    except Exception:
+        pass
     return {**est, "ok": run.get("status") in {"success", "prepared"}, "run": run}
+
+
+# ---- Versioned sanitized dataset builder (V3, issue #77) ----
+
+DATASET_REDACTION_NOTE = (
+    "Sanitized for training: PII/secrets redacted via training_data_share sanitization "
+    "(emails, phones, long IDs, card-like numbers). No raw secrets/PII intended. "
+    "Deterministic engine remains source of truth; dataset is for explicit operator-approved training/eval only."
+)
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _dataset_manifest_path(jsonl_path: Path) -> Path:
+    name = jsonl_path.name
+    if name.endswith(".jsonl"):
+        name = name[:-6]
+    return jsonl_path.with_name(name + ".manifest.json")
+
+
+def _iter_sanitized_dataset_records(pkg: dict[str, Any]) -> list[dict[str, Any]]:
+    data = pkg.get("data") if isinstance(pkg.get("data"), dict) else {}
+    created_at = str(pkg.get("created_at") or _now_iso())
+    prov_base = {
+        "package_type": pkg.get("package_type"),
+        "package_version": pkg.get("version"),
+        "package_sha256": pkg.get("sha256"),
+        "bundle_id": pkg.get("bundle_id"),
+        "app": pkg.get("app"),
+    }
+    rows: list[dict[str, Any]] = []
+
+    def add(kind: str, source: str, record: dict[str, Any], idx: int) -> None:
+        rec = dict(record) if isinstance(record, dict) else {"value": record}
+        rec["_dataset_kind"] = kind
+        rec["_source"] = source
+        rec["_provenance"] = {**prov_base, "source": source, "kind": kind, "index": idx, "created_at": created_at}
+        rec["_sanitized"] = True
+        rows.append(rec)
+
+    for i, r in enumerate(data.get("feedback") or []):
+        if isinstance(r, dict):
+            add("feedback", "assistant_nlu.feedback", r, i)
+    for i, r in enumerate(data.get("intent_seed") or []):
+        if isinstance(r, dict):
+            add("intent_seed", "assistant_nlu.intents_seed", r, i)
+    for i, r in enumerate(data.get("persona_examples") or []):
+        if isinstance(r, dict):
+            add("persona", "co_camp.persona_examples", r, i)
+    for i, r in enumerate(data.get("business_history") or []):
+        if isinstance(r, dict):
+            add("business_history", "datasets.curated.business_history", r, i)
+    for i, r in enumerate(data.get("app_operations_knowledge") or []):
+        if isinstance(r, dict):
+            add("ops_knowledge", "datasets.curated.app_operations_knowledge", r, i)
+    return rows
+
+
+def build_sanitized_dataset(*, actor: str = "assistant_training") -> dict[str, Any]:
+    """Build a versioned sanitized JSONL dataset + manifest in data/datasets/processed.
+
+    Explicit operator action only. Reuses training_data_share sanitization.
+    """
+    from . import training_data_share
+
+    pkg = training_data_share.build_training_share_package()
+    records = _iter_sanitized_dataset_records(pkg)
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    dataset_id = f"sanitized-dataset-{ts}"
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    jsonl_path = PROCESSED_DIR / f"{dataset_id}.jsonl"
+    manifest_path = PROCESSED_DIR / f"{dataset_id}.manifest.json"
+
+    with jsonl_path.open("w", encoding="utf-8") as f:
+        for rec in records:
+            f.write(json.dumps(rec, ensure_ascii=False, default=str) + "\n")
+
+    sha256 = _sha256_file(jsonl_path)
+    size_bytes = jsonl_path.stat().st_size
+    def _rel(p: Path) -> str:
+        try:
+            return str(p.relative_to(PROJECT_ROOT))
+        except Exception:
+            return str(p)
+    manifest = {
+        "id": dataset_id,
+        "version": 1,
+        "created_at": _now_iso(),
+        "actor": str(actor or "assistant_training"),
+        "kind": "sanitized_training_dataset",
+        "format": "jsonl",
+        "path": _rel(jsonl_path),
+        "manifest_path": _rel(manifest_path),
+        "jsonl_path": _rel(jsonl_path),
+        "bytes": size_bytes,
+        "size_bytes": size_bytes,
+        "sha256": sha256,
+        "fingerprint": sha256,
+        "record_count": len(records),
+        "counts": pkg.get("counts") or {},
+        "provenance": {
+            "source_package": "training_data_share.build_training_share_package",
+            "package_type": pkg.get("package_type"),
+            "package_version": pkg.get("version"),
+            "package_sha256": pkg.get("sha256"),
+            "bundle_id": pkg.get("bundle_id"),
+            "app": pkg.get("app"),
+        },
+        "redaction_note": DATASET_REDACTION_NOTE,
+        "pii_secrets_redacted": True,
+        "no_silent_upload": True,
+    }
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    # best-effort job/audit tracking
+    try:
+        from . import model_ops
+        job = model_ops.create_job(
+            "dataset_build",
+            model_id="",
+            dataset_ref=manifest["path"],
+            dataset_fingerprint=sha256,
+            config={"kind": "sanitized", "dataset_id": dataset_id},
+            actor=str(actor or "assistant_training"),
+        )
+        model_ops.update_job(int(job["id"]), status="success", artifact_path=manifest["path"], log_path=manifest["manifest_path"], metrics_json={"bytes": size_bytes, "record_count": len(records), "counts": manifest["counts"]})
+    except Exception:
+        pass
+
+    return {"ok": True, "dataset": manifest}
+
+
+def list_sanitized_datasets(limit: int = 50) -> list[dict[str, Any]]:
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    items: list[dict[str, Any]] = []
+    for mp in sorted(PROCESSED_DIR.glob("sanitized-dataset-*.manifest.json"), reverse=True):
+        try:
+            m = json.loads(mp.read_text(encoding="utf-8", errors="ignore"))
+        except Exception:
+            continue
+        if not isinstance(m, dict):
+            continue
+        # normalize/refresh size if file exists
+        p = PROJECT_ROOT / str(m.get("jsonl_path") or m.get("path") or "")
+        if p.exists():
+            try:
+                m["bytes"] = p.stat().st_size
+                m["size_bytes"] = m["bytes"]
+            except Exception:
+                pass
+        items.append(m)
+        if len(items) >= max(1, min(int(limit or 50), 200)):
+            break
+    return items
+
+
+def get_sanitized_dataset(dataset_id: str) -> dict[str, Any] | None:
+    did = str(dataset_id or "").strip()
+    if not did:
+        return None
+    # prevent path traversal
+    if "/" in did or "\\" in did or ".." in did:
+        return None
+    mp = PROCESSED_DIR / f"{did}.manifest.json"
+    if not mp.exists():
+        # allow passing full id without prefix? no, be strict
+        return None
+    try:
+        m = json.loads(mp.read_text(encoding="utf-8", errors="ignore"))
+        return m if isinstance(m, dict) else None
+    except Exception:
+        return None
