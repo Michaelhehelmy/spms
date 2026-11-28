@@ -1,8 +1,8 @@
-name = "spms-landing"
+name = "spms"
 compatibility_date = "2026-11-14"
 
-# Deploy landing page (index.html) as a Cloudflare Worker static asset site.
+# Deploy landing page from website/ as a Cloudflare Worker static asset site.
 # Preview: npx wrangler dev
 # Deploy:  npx wrangler deploy
 [assets]
-directory = "."
+directory = "./website"

@@ -243,7 +243,7 @@ See `docs/TROUBLESHOOTING.md`.
 
 - `assistant.md` — assistant capabilities, grounded/read-only behavior, evolution and plan.
 - `docs/PACKAGING.md` — packaging/distribution formats, modularization boundaries, and implementation roadmap/status.
-- `docs/NATIVE_BUILDS.md` — Nuitka/native standalone build and release packaging guidance (GitHub Releases assets auto-detected by landing page). Landing page can also accept uploaded JSON issue reports via Cloudflare Pages Function (`functions/api/report.js`) when configured with secrets (e.g. `REPORT_GITHUB_TOKEN`, optional `REPORT_GITHUB_REPO`/`REPORT_GITHUB_LABELS`) to create GitHub issues for maintainers.
+- `docs/NATIVE_BUILDS.md` — Nuitka/native standalone build and release packaging guidance (GitHub Releases assets auto-detected by landing page). Landing page lives in `website/` and can also accept uploaded JSON issue reports via Cloudflare Pages Function (`website/functions/api/report.js`) when configured with secrets (e.g. `REPORT_GITHUB_TOKEN`, optional `REPORT_GITHUB_REPO`/`REPORT_GITHUB_LABELS`) to create GitHub issues for maintainers.
 - `docs/PRODUCTION_ROADMAP.md` — phased P0–P3 production hardening/operations roadmap and checklist.
 - `docs/DEPLOYMENT.md` — local/LAN/remote deployment, reverse proxy + HTTPS, systemd/Docker guidance.
 - `docs/SECURITY.md` — hardening checklist, secrets/cookies, authz/unlock/CSRF, printer/file/data handling.
