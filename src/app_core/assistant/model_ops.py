@@ -551,8 +551,9 @@ def update_job(job_id: int, **fields: Any) -> dict[str, Any] | None:
     sets.append("updated_at=?")
     vals.append(_now_iso())
     vals.append(int(job_id))
+    sql = f"UPDATE assistant_model_jobs SET {', '.join(sets)} WHERE id=?"  # nosec B608 - column names are whitelisted above
     with db.connect() as conn:
-        conn.execute(f"UPDATE assistant_model_jobs SET {', '.join(sets)} WHERE id=?", vals)
+        conn.execute(sql, vals)
         conn.commit()
     return get_job(job_id)
 
